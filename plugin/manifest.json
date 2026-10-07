@@ -1,0 +1,14 @@
+{
+  "name": "Flow Capture",
+  "id": "figma-flow-capture-local",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "permissions": ["teamlibrary"],
+  "networkAccess": {
+    "allowedDomains": ["none"],
+    "devAllowedDomains": ["http://localhost:8765", "ws://localhost:8765"]
+  }
+}

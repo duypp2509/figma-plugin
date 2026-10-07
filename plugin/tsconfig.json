@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2017"],
+    "types": [],
+    "typeRoots": ["../node_modules/@figma"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "files": ["../node_modules/@figma/plugin-typings/index.d.ts", "src/code.ts"]
+}

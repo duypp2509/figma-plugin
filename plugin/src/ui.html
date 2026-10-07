@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<style>
+  body { margin: 0; padding: 16px; font: 13px/1.5 Inter, system-ui, sans-serif; color: var(--figma-color-text, #1e293b); background: var(--figma-color-bg, #fff); }
+  h1 { margin: 0 0 12px; font-size: 14px; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0 0 14px; }
+  dt { color: var(--figma-color-text-secondary, #64748b); }
+  dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+  .dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: #94a3b8; }
+  .dot.on { background: #16a34a; }
+  .dot.off { background: #dc2626; }
+  fieldset { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--figma-color-border, #e2e8f0); border-radius: 6px; }
+  legend { padding: 0 4px; color: var(--figma-color-text-secondary, #64748b); }
+  label { display: flex; align-items: flex-start; gap: 8px; padding: 3px 0; cursor: pointer; }
+  #error { color: var(--figma-color-text-danger, #b91c1c); }
+  button { width: 100%; min-height: 32px; border: 1px solid var(--figma-color-border, #cbd5e1); border-radius: 6px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+  button:hover { background: var(--figma-color-bg-hover, #f1f5f9); }
+  #paste { display: flex; flex-direction: column; gap: 4px; margin: 0 0 14px; padding: 12px; border: 2px solid #f59e0b; border-radius: 8px; background: rgba(245, 158, 11, 0.12); }
+  #paste[hidden] { display: none; }
+  #paste strong { font-size: 14px; }
+  #paste small { color: var(--figma-color-text-secondary, #64748b); }
+  #paste button { margin-top: 6px; }
+  p.hint { margin: 10px 0 0; color: var(--figma-color-text-secondary, #64748b); font-size: 11px; }
+</style>
+</head>
+<body>
+  <h1>Flow Capture</h1>
+  <div id="paste" hidden>
+    <strong>Nhấn Ctrl+V trên canvas</strong>
+    <span id="paste-count"></span>
+    <span id="paste-name"></span>
+    <small>Nếu chưa dán được, bấm vào vùng trống trên canvas trước rồi Ctrl+V.</small>
+    <button id="paste-skip" type="button">Bỏ qua màn này</button>
+  </div>
+  <dl>
+    <dt>Kết nối</dt><dd><span id="dot" class="dot"></span><span id="connection">Đang kết nối…</span></dd>
+    <dt>Luồng</dt><dd id="flow">—</dd>
+    <dt>Đã dựng</dt><dd id="built">—</dd>
+    <dt>Lỗi / cảnh báo</dt><dd id="error">—</dd>
+  </dl>
+  <fieldset>
+    <legend>Khi luồng đã có trên trang</legend>
+    <label><input type="radio" name="mode" value="overwrite" checked> Ghi đè luồng cũ (thay ảnh theo từng bước)</label>
+    <label><input type="radio" name="mode" value="new"> Tạo section mới kèm thời gian</label>
+  </fieldset>
+  <fieldset>
+    <legend>Bố cục</legend>
+    <label><input type="checkbox" id="arrows" checked> Vẽ mũi tên giữa các bước</label>
+    <label><input type="checkbox" id="colors" checked> Tô màu Section theo cấp (màu tên "Section 1", "Section 2"… của file)</label>
+  </fieldset>
+  <button id="reconnect" type="button">Kết nối lại</button>
+  <p class="hint">Giữ cửa sổ này mở trong lúc chạy <code>npm run capture</code>. Tùy chọn áp dụng cho luồng nhận kế tiếp.</p>
+  <script>/*__UI_SCRIPT__*/</script>
+</body>
+</html>

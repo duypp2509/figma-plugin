@@ -1,0 +1,33 @@
+{
+  "name": "figma-flow-capture",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "capture": "tsx capture/cli.ts",
+    "server": "tsx server/index.ts",
+    "build:plugin": "node scripts/build-plugin.mjs",
+    "test:send": "tsx scripts/send-test-images.ts",
+    "test:relay": "tsx scripts/relay-self-test.ts",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p plugin/tsconfig.json && tsc --noEmit -p plugin/tsconfig.ui.json"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "playwright": "1.62.1",
+    "pngjs": "^7.0.0",
+    "ws": "^8.18.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.109.0",
+    "@types/node": "^22.13.10",
+    "@types/pngjs": "^6.0.5",
+    "@types/ws": "^8.5.13",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.2"
+  }
+}

@@ -1,0 +1,8 @@
+node_modules/
+captures/
+.auth/
+plugin/dist/
+.env
+.env.*
+!.env.example
+*.log
