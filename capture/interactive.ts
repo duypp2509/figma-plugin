@@ -1,8 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { stripVTControlCharacters, styleText } from "node:util";
+import { styleText } from "node:util";
 import * as prompts from "@clack/prompts";
-import { BANNER_ART, BANNER_ART_WIDTH } from "./banner-art";
 import type { DiscoveredFlow } from "./discover";
 
 /** What the menu settled on: the same choices the flags express. */
@@ -68,42 +66,9 @@ function equivalentCommand(choice: MenuChoice): string {
   ].join(" ");
 }
 
-/**
- * The title with the picture beside it. The picture needs 24-bit colour and room for the text next to
- * it; a terminal that lacks either gets the text alone.
- *
- * FFC_BANNER chooses how the picture is drawn: "blocks" (default) as coloured characters, which every
- * such terminal shows; "image" as a real image, for a terminal that takes inline images (VS Code with
- * terminal.integrated.enableImages, iTerm2, WezTerm) and nothing but a gap in one that does not, which
- * cannot be found out by asking it; "off" for none.
- */
-function printBanner(text: string[]) {
-  const gutter = 3;
-  const mode = process.env.FFC_BANNER ?? "blocks";
-  const room = (process.stdout.columns ?? 80) - BANNER_ART_WIDTH - gutter;
-  const widest = Math.max(...text.map((line) => stripVTControlCharacters(line).length));
-  if (mode === "off" || !process.stdout.hasColors?.(2 ** 24) || room < widest) {
-    console.log(`\n${text.filter((line, index) => line !== "" || text[index - 1] !== "").join("\n")}\n`);
-    return;
-  }
-  const first = Math.max(0, Math.floor((BANNER_ART.length - text.length) / 2));
-  const imageFile = path.join(import.meta.dirname, "banner.png");
-  if (mode === "image" && existsSync(imageFile)) {
-    const image = readFileSync(imageFile);
-    const lines = BANNER_ART.length;
-    process.stdout.write([
-      // Room for the picture first, so that drawing it never scrolls the screen under the saved cursor.
-      "\n".repeat(lines + 2), `\x1b[${lines + 1}A`, "\x1b7\x1b[2G",
-      `\x1b]1337;File=inline=1;size=${image.length};width=${BANNER_ART_WIDTH};height=${lines};preserveAspectRatio=1:${image.toString("base64")}\x07`,
-      "\x1b8",
-      ...Array.from({ length: lines }, (_, row) => `\x1b[${BANNER_ART_WIDTH + gutter + 2}G${text[row - first] ?? ""}\n`),
-      "\n",
-    ].join(""));
-    return;
-  }
-  console.log();
-  BANNER_ART.forEach((art, row) => console.log(` ${art}${" ".repeat(gutter)}${text[row - first] ?? ""}`));
-  console.log();
+/** The menu title and keyboard shortcuts. */
+function printHeader(text: string[]) {
+  console.log(`\n${text.filter((line, index) => line !== "" || text[index - 1] !== "").join("\n")}\n`);
 }
 
 /** A group's size, and the warning of a flow in it that has one. */
@@ -231,7 +196,7 @@ async function captureWizard(flows: DiscoveredFlow[], groups: FlowGroup[]): Prom
  */
 export async function runMenu(flows: DiscoveredFlow[], flowsDir: string): Promise<MenuChoice | null> {
   const groups = groupFlows(flows, flowsDir);
-  printBanner([
+  printHeader([
     styleText(["bgCyan", "black", "bold"], " figma-flow-capture "),
     "",
     "Chụp từng luồng người dùng,",

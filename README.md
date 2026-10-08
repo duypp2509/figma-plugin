@@ -151,10 +151,6 @@ Dùng phím mũi tên để di chuyển, Space để chọn, Enter để xác nh
 
 Mục "Xem danh sách luồng" cho chọn một nhóm rồi hiện id và tên các luồng trong nhóm đó.
 
-Tranh cạnh tiêu đề menu chỉ hiện khi terminal hỗ trợ màu 24-bit và đủ rộng (khoảng 80 cột); nếu không, menu chỉ hiện chữ. Đổi tranh bằng `npx tsx scripts/make-banner.ts <ảnh.png> [số cột]`, lệnh này ghi lại `capture/banner-art.ts` và `capture/banner.png`.
-
-Mặc định tranh được vẽ bằng ký tự khối màu, terminal nào cũng hiện được nhưng không nét. Để hiện ảnh thật, đặt `FFC_BANNER=image` trong `.env` và dùng terminal hỗ trợ ảnh nội tuyến: trong VS Code, thêm `"terminal.integrated.enableImages": true` vào settings rồi mở terminal mới. Terminal không hỗ trợ sẽ để trống chỗ của ảnh; khi đó bỏ dòng `FFC_BANNER` đi. `FFC_BANNER=off` tắt tranh.
-
 ### Gõ lệnh trực tiếp
 
 Trong PowerShell luôn dùng `.\capture`. Đừng dùng `npm run capture -- <cờ>`: PowerShell nuốt mất dấu `--` nên cờ không tới được CLI.
@@ -510,7 +506,6 @@ Sao chép `.env.example` thành `.env` (file này không vào git). Tất cả �
 | `SUPERSHIP_SRC`, `SUPERPLATFORM_SRC` | Thư mục mã nguồn của app, khi không nằm ở `../SuperShip UI`, `../SuperPlatform UI` |
 | `BACKEND_SRC` | Thư mục mã nguồn backend, khi không nằm ở `../Server` |
 | `FFC_FIGMA_PROCESS` | Tên tiến trình của Figma cho `--auto-paste`, khi không phải `Figma` |
-| `FFC_BANNER` | Cách vẽ tranh ở menu: `blocks` (mặc định), `image` (ảnh thật), `off` |
 
 ## 11. Kiểm tra công cụ khi không có app
 
