@@ -7,7 +7,9 @@
     "node": ">=22.0.0"
   },
   "scripts": {
+    "setup": "playwright install chromium && node scripts/build-plugin.mjs && tsx capture/cli.ts --doctor",
     "capture": "tsx capture/cli.ts",
+    "doctor": "tsx capture/cli.ts --doctor",
     "server": "tsx server/index.ts",
     "build:plugin": "node scripts/build-plugin.mjs",
     "test:send": "tsx scripts/send-test-images.ts",
@@ -15,6 +17,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p plugin/tsconfig.json && tsc --noEmit -p plugin/tsconfig.ui.json"
   },
   "dependencies": {
+    "@clack/prompts": "^1.8.1",
     "dotenv": "^16.4.7",
     "playwright": "1.62.1",
     "pngjs": "^7.0.0",

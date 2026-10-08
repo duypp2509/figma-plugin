@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(.\\capture *)",
+      "PowerShell(.\\capture.cmd *)",
+      "Bash(./capture.cmd *)",
+      "PowerShell(npm run typecheck)",
+      "PowerShell(npm run build:plugin)",
+      "PowerShell(npm run doctor)",
+      "PowerShell(npm run test:relay)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run build:plugin)",
+      "Bash(npm run doctor)",
+      "Bash(npm run test:relay)"
+    ]
+  }
+}

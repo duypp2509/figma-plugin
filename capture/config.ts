@@ -9,7 +9,11 @@ const configSchema = z.object({
     baseUrl: z.string().url(),
     /** Product name that starts every frame name, e.g. "SuperShip - NHẬP MÃ OTP". Defaults to the key. */
     label: z.string().min(1).optional(),
+    /** Where the app's source code is, relative to this tool: read to write a flow, never changed. */
+    sourceDir: z.string().min(1).optional(),
   })),
+  /** Where the backend's source code is: the wording of its errors is copied into the stand-in backends. */
+  backendSourceDir: z.string().min(1).optional(),
   /** Viewport name → logical size. */
   viewports: z.record(z.object({
     width: z.number().int().positive(),

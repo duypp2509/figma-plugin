@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
+import { styleText } from "node:util";
 import { chromium, type Browser, type Locator, type Page } from "playwright";
 import type { CaptureConfig } from "./config";
 import { data } from "./data";
@@ -21,6 +22,10 @@ export interface RunOptions {
   viewport?: string;
   actor?: string;
   sectionName?: string;
+  /** Keep the flows that declare a `caution` even when they were not named by their exact id (for listing). */
+  includeCautioned?: boolean;
+  /** Told of every flow left out because of its `caution`. */
+  onCautionSkip?: (flow: FlowDefinition) => void;
   headed: boolean;
   figma: boolean;
   /** "image": a flat picture per step. "layers": editable Figma layers, pasted by the user step by step. */
@@ -68,7 +73,7 @@ const AUTO_PASTE_NUDGE_MS = 20_000;
 const pad2 = (value: number) => String(value).padStart(2, "0");
 
 /** One run per viewport × actor a flow declares; each becomes its own Section. */
-export function expandVariants(options: Pick<RunOptions, "config" | "flows" | "only" | "viewport" | "actor" | "sectionName">): Variant[] {
+export function expandVariants(options: Pick<RunOptions, "config" | "flows" | "only" | "viewport" | "actor" | "sectionName" | "includeCautioned" | "onCautionSkip">): Variant[] {
   const { config } = options;
   // "--flow quen-mat-khau*" selects every flow whose id starts with the text before the star.
   const selects = (pattern: string, id: string) => pattern.endsWith("*") ? id.startsWith(pattern.slice(0, -1)) : pattern === id;
@@ -81,6 +86,11 @@ export function expandVariants(options: Pick<RunOptions, "config" | "flows" | "o
   const variants: Variant[] = [];
   for (const { file, flow } of options.flows) {
     if (options.only.length > 0 && !options.only.some((pattern) => selects(pattern, flow.id))) continue;
+    // A flow with consequences outside the browser never comes along with the others.
+    if (flow.caution && !options.includeCautioned && !options.only.includes(flow.id)) {
+      options.onCautionSkip?.(flow);
+      continue;
+    }
     if (!config.apps[flow.app]) throw new Error(`Luồng "${flow.id}": app "${flow.app}" không có trong capture.config.ts.`);
 
     const viewports = flow.viewports ?? [config.defaultViewport];
@@ -207,7 +217,7 @@ interface VariantRun {
 async function runVariant(browser: Browser, variant: Variant, options: RunOptions, figma: FigmaClient | null): Promise<VariantRun> {
   const { config } = options;
   const { flow, key } = variant;
-  const log = (line: string) => console.log(`[${key}] ${line}`);
+  const log = (line: string) => console.log(`${styleText("dim", `[${key}]`)} ${line.startsWith("LỖI") ? styleText("red", line) : line}`);
   const app = config.apps[flow.app]!;
   const viewport = config.viewports[variant.viewport]!;
   const directory = path.join(options.root, config.outputDir, variant.folder);

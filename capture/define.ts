@@ -44,6 +44,11 @@ const flowSchema = z.object({
    * Sections, outermost first: ["MỜI THÀNH VIÊN", "MỜI THÀNH VIÊN MỚI VÀO SHOP"].
    */
   group: z.union([z.string().min(1), z.array(z.string().min(1)).nonempty()]).optional(),
+  /**
+   * What running this flow costs outside the browser, e.g. "tạo tài khoản thật". A flow that says so only
+   * runs when it is named by its exact id: "--all", a "prefix*" and the menu's "everything" leave it out.
+   */
+  caution: z.string().min(1).optional(),
   run: z.custom<(context: FlowContext) => Promise<void>>((value) => typeof value === "function", "run phải là một hàm"),
 }).strict();
 

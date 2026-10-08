@@ -32,19 +32,56 @@ export interface Reply {
 
 type Handler = (request: Request, match: RegExpMatchArray) => Reply | Promise<Reply>;
 
-export interface Backend {
+/** The stand-in for one of the app's APIs: the calls under one base path. */
+export interface MockedApi {
   /**
-   * Answers calls whose path (after /api/backend) matches. A handler added later wins over an earlier
-   * one, so a flow can replace a default for one scenario.
+   * Answers calls whose path (after the API's base path) matches. A handler added later wins over an
+   * earlier one, so a flow can replace a default for one scenario.
    */
   on(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: RegExp, handler: Handler): void;
-  /** Changes what the signed-in member may do; takes effect on the next page load. */
-  setPermissions(permissions: readonly string[]): void;
   /** Calls no handler knew, e.g. "GET /v1/orders". They got a 404; a flow should not rely on them. */
   readonly unexpected: string[];
 }
 
+/** The app's other APIs by the base path its pages call them on (shared/config/env.ts of the app). */
+export const API_BASE = { orders: "/api/orders", support: "/api/support", mock: "/api/mock" } as const;
+
+export interface Backend extends MockedApi {
+  /** Changes what the signed-in member may do; takes effect on the next page load. */
+  setPermissions(permissions: readonly string[]): void;
+  /**
+   * Stands in for another API of the app, e.g. `backend.api(API_BASE.orders)` for the Order API. Until this is
+   * called for a base path, its calls go to whatever really runs there. Asking twice gives the same stand-in.
+   */
+  api(basePath: string): Promise<MockedApi>;
+}
+
 const ok = (data: unknown) => ({ status: 200, json: { error: false, message: null, data } });
+
+interface Registered { method: string; path: RegExp; handler: Handler }
+
+/** Answers every call under `basePath` from `handlers`; a call none of them knows gets a 404 and is logged once. */
+async function routeApi(page: Page, basePath: string, handlers: Registered[], unexpected: string[], log: (line: string) => void): Promise<void> {
+  const label = basePath === "/api/backend" ? "" : `${basePath} `;
+  await page.route(`**${basePath}/**`, async (route: Route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    const path = pathname.slice(pathname.indexOf(basePath) + basePath.length);
+    for (const { method, path: pattern, handler } of handlers) {
+      const match = request.method() === method ? path.match(pattern) : null;
+      if (!match) continue;
+      const reply = await handler(request, match);
+      if (reply.status && reply.status >= 400) {
+        // Without a message the app shows its own wording for a failed request.
+        return route.fulfill({ status: reply.status, json: { error: true, message: reply.message ?? null, data: reply.code ? { code: reply.code } : null } });
+      }
+      return route.fulfill(ok(reply.data ?? {}));
+    }
+    const call = `${request.method()} ${path}`;
+    if (!unexpected.includes(call)) { unexpected.push(call); log(`chưa giả lập: ${label}${call}`); }
+    return route.fulfill({ status: 404, json: { error: true, message: `Chưa giả lập: ${call}`, data: null } });
+  });
+}
 
 export function capability(key: string, organizationId: string) {
   return {
@@ -74,13 +111,23 @@ export async function mockSignedInShop(page: Page, shop: ShopFixture, permission
   };
   await page.context().addInitScript(`sessionStorage.setItem(${JSON.stringify(SESSION_STORAGE_KEY)}, ${JSON.stringify(JSON.stringify(session))});`);
 
-  const handlers: Array<{ method: string; path: RegExp; handler: Handler }> = [];
+  const handlers: Registered[] = [];
   const unexpected: string[] = [];
+  const others = new Map<string, MockedApi>();
   let granted = permissions;
   const backend: Backend = {
     on: (method, path, handler) => { handlers.unshift({ method, path, handler }); },
     setPermissions: (next) => { granted = next; },
     unexpected,
+    api: async (basePath) => {
+      const known = others.get(basePath);
+      if (known) return known;
+      const apiHandlers: Registered[] = [];
+      const api: MockedApi = { on: (method, path, handler) => { apiHandlers.unshift({ method, path, handler }); }, unexpected: [] };
+      await routeApi(page, basePath, apiHandlers, api.unexpected, log);
+      others.set(basePath, api);
+      return api;
+    },
   };
 
   backend.on("GET", /^\/v1\/me\/capabilities$/, () => ({
@@ -112,6 +159,14 @@ export async function mockSignedInShop(page: Page, shop: ShopFixture, permission
       active_context: activeContext,
     },
   }));
+  // The Bearer token the Order, Support and Mock APIs are called with. The page asks for it before its first
+  // call to one of them; a stand-in API does not check it, a real one refuses it.
+  backend.on("POST", /^\/v1\/me\/access-context\/token$/, () => ({
+    data: {
+      active_context: { ...activeContext, context_version: 1 }, access_token: "capture-access-token", token_type: "Bearer",
+      expires_in: 600, access_token_expires_at: new Date(Date.now() + 600_000).toISOString(),
+    },
+  }));
   backend.on("GET", /^\/v1\/me\/profile$/, () => ({
     data: {
       identity_id: session.identityId, person_id: "capture-person", full_name: shop.fullName, date_of_birth: "1994-05-12", gender: "FEMALE",
@@ -128,23 +183,7 @@ export async function mockSignedInShop(page: Page, shop: ShopFixture, permission
     },
   }));
 
-  await page.route("**/api/backend/**", async (route: Route) => {
-    const request = route.request();
-    const pathname = new URL(request.url()).pathname.replace(/^.*\/api\/backend/, "");
-    for (const { method, path, handler } of handlers) {
-      const match = request.method() === method ? pathname.match(path) : null;
-      if (!match) continue;
-      const reply = await handler(request, match);
-      if (reply.status && reply.status >= 400) {
-        // Without a message the app shows its own wording for a failed request.
-        return route.fulfill({ status: reply.status, json: { error: true, message: reply.message ?? null, data: reply.code ? { code: reply.code } : null } });
-      }
-      return route.fulfill(ok(reply.data ?? {}));
-    }
-    const call = `${request.method()} ${pathname}`;
-    if (!unexpected.includes(call)) { unexpected.push(call); log(`chưa giả lập: ${call}`); }
-    return route.fulfill({ status: 404, json: { error: true, message: `Chưa giả lập: ${call}`, data: null } });
-  });
+  await routeApi(page, "/api/backend", handlers, unexpected, log);
 
   return backend;
 }

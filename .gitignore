@@ -6,3 +6,4 @@ plugin/dist/
 .env.*
 !.env.example
 *.log
+.claude/settings.local.json

@@ -8,6 +8,7 @@ export default defineFlow({
   id: "dang-ky-shop",
   name: "Đăng ký Shop",
   app: "supership",
+  caution: "chạy với backend thật: tạo một tài khoản và Shop mới, tốn 1 trong 50 OTP mỗi ngày, và phải tự bấm captcha (--headed)",
   async run({ page, shot, log }) {
     // The whole flow stays on /register: the form lives in memory, so never reload along the way.
     await page.goto("/register");

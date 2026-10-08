@@ -3,9 +3,16 @@ import { defineConfig } from "./capture";
 // Shared settings only. A flow lives in its own file under flows/.
 export default defineConfig({
   apps: {
-    supership: { baseUrl: process.env.SUPERSHIP_URL ?? "http://localhost:3001", label: "SuperShip" },
-    superplatform: { baseUrl: process.env.SUPERPLATFORM_URL ?? "http://localhost:3000", label: "SuperPlatform" },
+    supership: {
+      baseUrl: process.env.SUPERSHIP_URL ?? "http://localhost:3001", label: "SuperShip",
+      sourceDir: process.env.SUPERSHIP_SRC ?? "../SuperShip UI",
+    },
+    superplatform: {
+      baseUrl: process.env.SUPERPLATFORM_URL ?? "http://localhost:3000", label: "SuperPlatform",
+      sourceDir: process.env.SUPERPLATFORM_SRC ?? "../SuperPlatform UI",
+    },
   },
+  backendSourceDir: process.env.BACKEND_SRC ?? "../Server",
   viewports: {
     desktop: { width: 1440, height: 900 },
     mobile: { width: 390, height: 844, isMobile: true },
