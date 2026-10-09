@@ -39,6 +39,7 @@ export async function mockUnverifiedEmail(page: Page, backend: Backend): Promise
       identity_id: "capture-identity", person_id: "capture-person", full_name: KHA_AI_SHOP.fullName, date_of_birth: "1994-05-12", gender: "FEMALE",
       avatar_url: null, status: "ACTIVE", last_login_at: new Date(START).toISOString(), person_version: 1, has_password: true,
       identity_document_type: "CCCD", identity_document_number: "048194001234",
+      identity_document_issued_on: "2021-08-16", identity_document_issued_place: "Cục Cảnh sát quản lý hành chính về trật tự xã hội",
       identifiers: [
         { id: "identifier-phone", type: "PHONE", value: PHONE, verified: true },
         { id: "identifier-email", type: "EMAIL", value: EMAIL, verified: emailVerified },
