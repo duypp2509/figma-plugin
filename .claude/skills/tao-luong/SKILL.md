@@ -84,7 +84,7 @@ export default [
 
 Quy ước:
 
-- `id`: duy nhất trong cả repo, không dấu, chữ thường, gạch ngang, bắt đầu bằng tiền tố của nhóm. `name`: tên Section, theo cách viết của nhóm (thường viết hoa).
+- `id`: duy nhất trong cả repo, không dấu, chữ thường, gạch ngang, bắt đầu bằng tiền tố của nhóm. `name`: tên Section, theo cách viết của nhóm (thường viết hoa), không đánh số thứ tự ("SỬA TÊN…", không "03. SỬA TÊN…"); thứ tự trên Figma theo thứ tự trong file. `defineFlow` tự bỏ số đầu tên nếu còn sót.
 - `stepId`: không dấu, chữ thường, gạch ngang, không trùng trong một luồng. `title`: tiếng Việt có dấu, mô tả màn hình; nó thành tên frame.
 - Luồng đã có trên Figma: giữ nguyên `id` và `stepId` cũ, chỉ thêm bước mới. Đổi là tạo Section hoặc frame mới thay vì cập nhật.
 - Trước mỗi `shot()`, chờ một dấu hiệu cụ thể của đúng màn đó (`locator.waitFor()`). Không chờ network idle, không dùng `waitForTimeout` để "cho chắc".

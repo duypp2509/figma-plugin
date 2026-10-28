@@ -56,7 +56,8 @@ export type FlowDefinition = z.infer<typeof flowSchema>;
 
 /** Declares a flow. A `flows/**\/*.flow.ts` file default-exports one flow, or an array of them. */
 export function defineFlow(flow: FlowDefinition): FlowDefinition {
-  return flow;
+  // Section names on Figma carry no running number ("03. SỬA TÊN…" → "SỬA TÊN…"); the order comes from the files.
+  return { ...flow, name: flow.name.replace(/^(\d+\.)+\s*/, "") };
 }
 
 export function parseFlow(value: unknown): FlowDefinition {
