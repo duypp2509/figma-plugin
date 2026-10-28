@@ -81,7 +81,7 @@ export async function openPolicy(page: Page) {
   await expect(page.getByRole("button", { name: "Thêm tổ chức", exact: true })).toBeVisible();
 }
 export const save = (page: Page) => page.getByRole("button", { name: "Lưu", exact: true });
-export const minutes = (page: Page) => page.getByLabel("Thời gian tự đăng xuất (phút)", { exact: true });
+export const minutes = (page: Page) => page.getByLabel(/^Thời gian tự đăng xuất \(phút\)\*?$/);
 export async function createPolicy(page: Page) {
   await page.getByRole("button", { name: "Thêm tổ chức", exact: true }).click();
   await page.getByLabel("Tìm tổ chức", { exact: true }).waitFor();

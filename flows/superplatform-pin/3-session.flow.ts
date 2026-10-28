@@ -12,11 +12,11 @@ export default [
   }, false),
   pinFlow("dong-bo-tab-giu-nhap", "ĐỒNG BỘ HAI TAB VÀ GIỮ FORM CHƯA LƯU", async ({ page, context, shot }) => {
     await openSettings(page); await shot("dang-bat", "Khóa màn hình đang bật — tự khóa sau 5 phút");
-    await page.getByRole("button", { name: "Đổi thời gian", exact: true }).click(); await page.getByLabel("Tự khóa sau", { exact: true }).fill("7"); await shot("ban-nhap", "Form đổi thời gian đang nhập, chưa lưu");
+    await page.getByRole("button", { name: "Đổi thời gian", exact: true }).click(); await page.getByLabel(/^Tự khóa sau\*?$/).fill("7"); await shot("ban-nhap", "Form đổi thời gian đang nhập, chưa lưu");
     const other = await context.newPage(); await openSettings(other); await lockNow(other);
     await page.getByRole("heading", { name: "Màn hình đã khóa" }).waitFor(); await shot("tab-khoa", "Khóa ở tab khác — tab hiện tại cũng khóa");
-    await unlock(other); await page.getByLabel("Tự khóa sau", { exact: true }).waitFor();
-    if (await page.getByLabel("Tự khóa sau", { exact: true }).inputValue() !== "7") throw new Error("Draft must survive unlock");
+    await unlock(other); await page.getByLabel(/^Tự khóa sau\*?$/).waitFor();
+    if (await page.getByLabel(/^Tự khóa sau\*?$/).inputValue() !== "7") throw new Error("Draft must survive unlock");
     await shot("tab-mo", "Mở ở tab khác — phục hồi form và giá trị chưa lưu"); await other.close();
   }),
   pinFlow("mo-tab-dang-khoa", "TAB MỚI KHI PHIÊN ĐANG KHÓA", async ({ page, shot, mock }) => {

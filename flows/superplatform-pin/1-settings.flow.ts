@@ -2,7 +2,7 @@ import { pinFlow, openSettings, fillPin, mfa, PIN } from "../_helpers/superplatf
 export default [
   pinFlow("thiet-lap", "THIẾT LẬP PIN VÀ XÁC THỰC MFA", async ({ page, shot }) => {
     await openSettings(page); await shot("chua-bat", "Chưa bật khóa màn hình");
-    await page.getByRole("button", { name: "Thiết lập PIN", exact: true }).click(); await page.getByLabel("Mã PIN mới", { exact: true }).waitFor(); await shot("form", "Thiết lập PIN và thời gian tự khóa");
+    await page.getByRole("button", { name: "Thiết lập PIN", exact: true }).click(); await page.getByLabel(/^Mã PIN mới\*?$/).waitFor(); await shot("form", "Thiết lập PIN và thời gian tự khóa");
     await fillPin(page); await shot("da-nhap", "Nhập PIN 6 chữ số — giữ số 0 đầu");
     await page.getByRole("button", { name: "Hiện mã pin mới" }).click(); await shot("hien-pin", "Hiện mã PIN để kiểm tra");
     await page.getByRole("button", { name: "Ẩn mã pin mới" }).click();
@@ -17,29 +17,29 @@ export default [
   }, false),
   pinFlow("kiem-tra-nhap-lieu", "KIỂM TRA PIN VÀ THỜI GIAN TỰ KHÓA", async ({ page, shot }) => {
     await openSettings(page); await shot("chua-bat", "Chưa bật khóa màn hình");
-    await page.getByRole("button", { name: "Thiết lập PIN", exact: true }).click(); await page.getByLabel("Mã PIN mới", { exact: true }).waitFor(); await shot("form", "Mở form thiết lập PIN");
+    await page.getByRole("button", { name: "Thiết lập PIN", exact: true }).click(); await page.getByLabel(/^Mã PIN mới\*?$/).waitFor(); await shot("form", "Mở form thiết lập PIN");
     const save = page.getByRole("button", { name: "Bật khóa màn hình", exact: true });
     await save.click(); await page.getByText("Nhập đủ 6 chữ số.").waitFor(); await shot("thieu-pin", "Chưa nhập PIN hoặc chưa đủ 6 chữ số");
     await fillPin(page, "111111"); await save.click(); await page.getByText("Tránh 6 số giống nhau hoặc dãy số liên tiếp.").waitFor(); await shot("pin-lap", "Từ chối PIN có 6 số giống nhau");
     await fillPin(page, "123456"); await save.click(); await page.getByText("Tránh 6 số giống nhau hoặc dãy số liên tiếp.").waitFor(); await shot("pin-lien-tiep", "Từ chối dãy số liên tiếp tăng hoặc giảm");
     await fillPin(page, PIN, "938472"); await save.click(); await page.getByText("Mã PIN nhập lại chưa khớp.").waitFor(); await shot("khong-khop", "PIN nhập lại không khớp");
-    await fillPin(page); await page.getByLabel("Tự khóa sau", { exact: true }).fill("0"); await save.click(); await page.getByText("Từ 10 giây đến 15 phút.").waitFor(); await shot("qua-ngan", "Thời gian nhỏ hơn 10 giây");
-    await page.getByLabel("Tự khóa sau", { exact: true }).fill("16"); await save.click(); await page.getByText("Từ 10 giây đến 15 phút.").waitFor(); await shot("qua-dai", "Thời gian lớn hơn 15 phút");
-    await page.getByRole("button", { name: "Hủy", exact: true }).click(); await page.getByLabel("Mã PIN mới", { exact: true }).waitFor({ state: "hidden" }); await shot("huy", "Hủy thiết lập — chưa bật PIN");
+    await fillPin(page); await page.getByLabel(/^Tự khóa sau\*?$/).fill("0"); await save.click(); await page.getByText("Từ 10 giây đến 15 phút.").waitFor(); await shot("qua-ngan", "Thời gian nhỏ hơn 10 giây");
+    await page.getByLabel(/^Tự khóa sau\*?$/).fill("16"); await save.click(); await page.getByText("Từ 10 giây đến 15 phút.").waitFor(); await shot("qua-dai", "Thời gian lớn hơn 15 phút");
+    await page.getByRole("button", { name: "Hủy", exact: true }).click(); await page.getByLabel(/^Mã PIN mới\*?$/).waitFor({ state: "hidden" }); await shot("huy", "Hủy thiết lập — chưa bật PIN");
   }, false),
   pinFlow("doi-pin", "ĐỔI PIN", async ({ page, shot }) => {
     await openSettings(page); await shot("dang-bat", "Cài đặt PIN đang bật");
-    await page.getByRole("button", { name: "Đổi PIN", exact: true }).click(); await page.getByLabel("Mã PIN mới", { exact: true }).waitFor(); await shot("form", "Nhập và xác nhận PIN mới");
+    await page.getByRole("button", { name: "Đổi PIN", exact: true }).click(); await page.getByLabel(/^Mã PIN mới\*?$/).waitFor(); await shot("form", "Nhập và xác nhận PIN mới");
     await fillPin(page, "938472"); await page.getByRole("button", { name: "Lưu thay đổi", exact: true }).click(); await page.getByRole("textbox", { name: "Mã xác thực" }).waitFor(); await shot("mfa", "Đổi PIN cần xác thực MFA mới");
     await mfa(page); await page.getByText("Mã PIN mới đã được lưu.", { exact: true }).waitFor(); await shot("thanh-cong", "Đã lưu mã PIN mới");
   }),
   pinFlow("doi-thoi-gian", "ĐỔI THỜI GIAN TỰ KHÓA", async ({ page, shot, mock }) => {
     await openSettings(page); await shot("dang-bat", "Khóa màn hình đang bật — tự khóa sau 5 phút");
-    await page.getByRole("button", { name: "Đổi thời gian", exact: true }).click(); await page.getByLabel("Tự khóa sau", { exact: true }).waitFor(); await shot("form", "Đổi thời gian tự khóa — đơn vị phút");
+    await page.getByRole("button", { name: "Đổi thời gian", exact: true }).click(); await page.getByLabel(/^Tự khóa sau\*?$/).waitFor(); await shot("form", "Đổi thời gian tự khóa — đơn vị phút");
     const select = page.getByRole("combobox", { name: "Đơn vị thời gian" });
     if (await select.evaluate(el => el.tagName === "SELECT")) await select.selectOption("1");
     else { await select.click(); await page.getByRole("option", { name: "giây", exact: true }).click(); }
-    await page.getByLabel("Tự khóa sau", { exact: true }).fill("45"); await shot("giay", "Đặt tự khóa sau 45 giây");
+    await page.getByLabel(/^Tự khóa sau\*?$/).fill("45"); await shot("giay", "Đặt tự khóa sau 45 giây");
     await page.getByRole("button", { name: "Lưu thay đổi", exact: true }).click(); await page.getByRole("textbox", { name: "Mã xác thực" }).waitFor(); await shot("mfa", "Xác thực MFA trước khi lưu thời gian mới");
     await mfa(page); await page.getByText("Sau 45 giây", { exact: true }).waitFor(); await shot("thanh-cong", "Đã cập nhật thời gian tự khóa");
     mock.timeout = 900;

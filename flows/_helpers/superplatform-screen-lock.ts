@@ -109,7 +109,7 @@ export async function openSettings(page: Page) {
   await page.getByRole("heading", { name: "Khóa màn hình", exact: true }).last().waitFor();
   await page.locator("#screen-lock").getByText(/^(Đang bật|Chưa bật)$/).waitFor();
 }
-export async function fillPin(page: Page, value = PIN, confirm = value) { await page.getByLabel("Mã PIN mới", { exact: true }).fill(value); await page.getByLabel("Nhập lại PIN", { exact: true }).fill(confirm); }
+export async function fillPin(page: Page, value = PIN, confirm = value) { await page.getByLabel(/^Mã PIN mới\*?$/).fill(value); await page.getByLabel(/^Nhập lại PIN\*?$/).fill(confirm); }
 export async function mfa(page: Page) { const input = page.getByRole("textbox", { name: "Mã xác thực" }); await input.waitFor(); await input.pressSequentially("515060"); await page.getByRole("button", { name: "Xác thực MFA và tiếp tục" }).click(); }
 export async function lockNow(page: Page) { await page.getByRole("button", { name: "Khóa ngay", exact: true }).click(); await page.getByRole("heading", { name: "Màn hình đã khóa" }).waitFor(); }
 export async function unlock(page: Page, value = PIN) { await page.getByLabel("Mã PIN", { exact: true }).fill(value); await page.getByRole("button", { name: "Mở khóa", exact: true }).click(); }
