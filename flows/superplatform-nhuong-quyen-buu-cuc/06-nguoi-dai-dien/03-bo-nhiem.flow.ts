@@ -1,6 +1,6 @@
 import { expect } from "playwright/test";
 import {
-  APPOINT, DONG_ANH, HA_DONG, MESSAGES, appointButton, dialog, enterCode, field, openRepresentatives, pick, pickDate, press, reminder,
+  APPOINT, attachBasis, DONG_ANH, HA_DONG, MESSAGES, appointButton, dialog, enterCode, field, openRepresentatives, pick, pickDate, press, reminder,
   representativeFlow, row, scrollTop, toast, waitCode,
 } from "../../_helpers/superplatform-representatives";
 
@@ -29,6 +29,7 @@ export default [
       await pick(page, "rep-person_id", "Đặng Quốc Bảo");
       await pickDate(page, "rep-start_date", "2026-10-01");
       await pick(page, "rep-basis_document_type", "Quyết định bổ nhiệm");
+      await attachBasis(page, "quyet-dinh-bo-nhiem-09-2026.pdf");
       await field(page, "rep-basis_document_number").fill("09/2026/QĐ-HĐQT");
       await pickDate(page, "rep-basis_document_date", "2026-09-30");
       await box.getByText("Căn cứ", { exact: true }).waitFor();
@@ -36,7 +37,7 @@ export default [
 
       await confirmAppoint(page);
       await shot("xac-nhan", "Kiểm tra lại trước khi bổ nhiệm");
-      await dialog(page, `${APPOINT}?`).getByRole("button", { name: "Bổ nhiệm", exact: true }).click();
+      await dialog(page, `${APPOINT}?`).getByRole("button", { name: /^(Bổ nhiệm|Xác nhận)$/ }).click();
       await waitCode(page);
       await shot("ma-xac-thuc", "Nhập mã xác thực");
 
@@ -65,13 +66,14 @@ export default [
       await pickDate(page, "rep-start_date", "2026-10-01");
       await pickDate(page, "rep-end_date", "2026-12-31");
       await pick(page, "rep-basis_document_type", "Giấy ủy quyền");
+      await attachBasis(page, "giay-uy-quyen-09-2026.pdf");
       await field(page, "rep-basis_document_number").fill("09/2026/UQ");
       await pickDate(page, "rep-basis_document_date", "2026-09-30");
       await shot("da-nhap", "Đã nhập phạm vi ủy quyền, thời hạn đến 31/12/2026 và giấy ủy quyền");
 
       await confirmAppoint(page);
       await shot("xac-nhan", "Kiểm tra lại trước khi bổ nhiệm");
-      await dialog(page, `${APPOINT}?`).getByRole("button", { name: "Bổ nhiệm", exact: true }).click();
+      await dialog(page, `${APPOINT}?`).getByRole("button", { name: /^(Bổ nhiệm|Xác nhận)$/ }).click();
       await waitCode(page);
       await enterCode(page);
       await toast(page, MESSAGES.appointed).waitFor();

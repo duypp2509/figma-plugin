@@ -1,6 +1,6 @@
 import {
-  addressDialog, addressFlow, choose, editButton, expect, field, fillAddress, historyDialog, openAddressEdit, openHistory,
-  openSection, pickDay, save,
+  addressDialog, addressEditButton, addressFlow, choose, expect, field, fillAddress, historyRows, openAddressEdit,
+  openHistory, openSection, pickDay, save,
 } from "../../_helpers/superplatform-unit-contacts";
 import { FRANCHISE_ID, MESSAGES, OLD_SERVICE_POINT, POST_OFFICE_ID, openOverview, toast } from "../../_helpers/superplatform-unit-profile";
 
@@ -18,15 +18,15 @@ export default [
 
       await openAddressEdit(page, SP);
       await expect(field(page, `addresses.${SP}.address_line`)).toHaveValue("Số 12 đường Văn Quán");
-      await expect(page.locator(`[data-field="addresses.${SP}.province_code"] [role="combobox"]`)).toContainText("Chọn Tỉnh/ Thành phố");
+      await expect(page.locator(`[data-field="addresses.${SP}.province_code"] [role="combobox"]`)).toContainText("Chọn Tỉnh/Thành phố");
       await shot("chon-lai", "Sửa: tỉnh, phường xã để trống, chọn lại theo địa giới mới");
 
       await fillAddress(page, SP, "Thành phố Hà Nội", "Phường Hà Đông");
       await shot("da-chon", "Đã chọn Thành phố Hà Nội, Phường Hà Đông");
 
-      await save(addressDialog(page));
+      await save(addressDialog(page, SP));
       await toast(page, "Đã lưu địa chỉ.").waitFor();
-      await addressDialog(page).waitFor({ state: "hidden" });
+      await addressDialog(page, SP).waitFor({ state: "hidden" });
       await page.getByText("Số 12 đường Văn Quán, Phường Hà Đông, Thành phố Hà Nội", { exact: true }).waitFor();
       await expect(page.getByText(MESSAGES.oldRegion, { exact: true })).toHaveCount(0);
       await shot("da-luu", "Đã lưu: hết dòng nhắc");
@@ -37,7 +37,7 @@ export default [
     id: "doi-diem-phuc-vu", name: "02. CẬP NHẬT ĐỊA CHỈ ĐIỂM PHỤC VỤ",
     async run({ page, shot, mock }) {
       await openSection(page, POST_OFFICE_ID, "addresses");
-      await editButton(page).waitFor();
+      await addressEditButton(page, SP).waitFor();
       await shot("dia-chi", "Địa chỉ của bưu cục");
 
       await openAddressEdit(page, SP);
@@ -48,9 +48,9 @@ export default [
       await field(page, `addresses.${SP}.address_line`).blur();
       await shot("da-sua", "Dời sang số 40, cùng phường");
 
-      await save(addressDialog(page));
+      await save(addressDialog(page, SP));
       await toast(page, "Đã lưu địa chỉ.").waitFor();
-      await addressDialog(page).waitFor({ state: "hidden" });
+      await addressDialog(page, SP).waitFor({ state: "hidden" });
       await page.getByText("Số 40 đường Văn Quán, Phường Hà Đông, Thành phố Hà Nội", { exact: true }).waitFor();
       await shot("da-luu", "Đã lưu địa chỉ");
 
@@ -65,7 +65,7 @@ export default [
     setup: units => { units[FRANCHISE_ID]!.addresses[OFFICE] = null; units[FRANCHISE_ID]!.addressHistory = []; },
     async run({ page, shot, mock }) {
       await openSection(page, FRANCHISE_ID, "addresses");
-      await page.getByText("Chưa có", { exact: true }).waitFor();
+      await page.getByText("Chưa có địa chỉ", { exact: true }).waitFor();
       await shot("chua-co", "Nhượng quyền chưa có văn phòng giao dịch");
 
       await openAddressEdit(page, OFFICE);
@@ -73,9 +73,9 @@ export default [
       await field(page, `addresses.${OFFICE}.address_line`).blur();
       await shot("da-nhap", "Nhập văn phòng giao dịch");
 
-      await save(addressDialog(page));
+      await save(addressDialog(page, OFFICE));
       await toast(page, "Đã lưu địa chỉ.").waitFor();
-      await addressDialog(page).waitFor({ state: "hidden" });
+      await addressDialog(page, OFFICE).waitFor({ state: "hidden" });
       await page.getByText("Tầng 3, số 8 Tố Hữu, Phường Kiến Hưng, Thành phố Hà Nội", { exact: true }).waitFor();
       await shot("da-luu", "Đã thêm văn phòng giao dịch");
       expect(mock.writes).toBe(1);
@@ -88,16 +88,16 @@ export default [
       await openSection(page, POST_OFFICE_ID, "addresses");
       await openAddressEdit(page, SP);
       await field(page, `addresses.${SP}.address_line`).fill("");
-      await save(addressDialog(page));
-      await addressDialog(page).getByText(MESSAGES.line, { exact: true }).waitFor();
+      await save(addressDialog(page, SP));
+      await addressDialog(page, SP).getByText(MESSAGES.line, { exact: true }).waitFor();
       await shot("thieu-dia-chi-chi-tiet", "Xóa trống địa chỉ chi tiết của điểm phục vụ");
 
       await openSection(page, FRANCHISE_ID, "addresses");
       await openAddressEdit(page, OFFICE);
       await choose(page, `addresses.${OFFICE}.province_code`, "Thành phố Hà Nội");
       await field(page, `addresses.${OFFICE}.address_line`).fill("Tầng 3, số 8 Tố Hữu");
-      await save(addressDialog(page));
-      await addressDialog(page).getByText(MESSAGES.ward, { exact: true }).waitFor();
+      await save(addressDialog(page, OFFICE));
+      await addressDialog(page, OFFICE).getByText(MESSAGES.ward, { exact: true }).waitFor();
       await shot("thieu-phuong-xa", "Văn phòng giao dịch chưa chọn phường, xã");
       expect(mock.writes).toBe(0);
     },
@@ -107,12 +107,11 @@ export default [
     async run({ page, shot }) {
       await openSection(page, POST_OFFICE_ID, "addresses");
       await openHistory(page, HISTORY);
-      const dialog = historyDialog(page, HISTORY);
-      await expect(dialog.locator("ol li")).toHaveCount(2);
+      await expect(historyRows(page)).toHaveCount(2);
       await shot("tat-ca", "Lịch sử địa chỉ: địa giới cũ, rồi địa chỉ theo địa giới mới");
 
-      await pickDay(dialog, "Từ ngày", "2025-07-01");
-      await expect(dialog.locator("ol li")).toHaveCount(1);
+      await pickDay(page, "Từ ngày", "2025-07-01");
+      await expect(historyRows(page)).toHaveCount(1);
       await shot("loc-tu-ngay", "Lọc từ 01/07/2025");
     },
   }),

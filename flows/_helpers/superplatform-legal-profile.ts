@@ -3,6 +3,7 @@ import { expect } from "playwright/test";
 import { defineFlow, type FlowContext } from "../../capture";
 import { mockPin } from "./superplatform-screen-lock";
 import { franchiseGroup, type FranchiseSection } from "./superplatform-franchise-sections";
+import { pickCalendarDay } from "./calendar";
 
 /*
  * "Thông tin pháp lý" (/workspace/organizations/{id}?section=legal-entities, /legal/edit, /legal/replace) and
@@ -65,6 +66,17 @@ const BASIS_TYPES: Record<string, string> = {
   COMPANY_CHARTER: "Điều lệ công ty", APPOINTMENT_DECISION: "Quyết định bổ nhiệm", POWER_OF_ATTORNEY: "Giấy ủy quyền",
   AUTHORIZATION_CONTRACT: "Hợp đồng ủy quyền",
 };
+/** The documents a term may rest on, by kind of representative (RepresentativeBasisDocumentType.allowedFor). */
+function basisByType(legal: { legal_form: string; enterprise_type: string | null } | null) {
+  const pick = (codes: string[]) => codes.map(code => ({ code, name: BASIS_TYPES[code]! }));
+  if (!legal) return {};
+  const byLaw = legal.legal_form === "HOUSEHOLD_BUSINESS" ? ["HOUSEHOLD_REGISTRATION_CERTIFICATE"]
+    : legal.legal_form === "INDIVIDUAL" ? []
+    : legal.enterprise_type === "PRIVATE_ENTERPRISE" ? ["BUSINESS_REGISTRATION_CERTIFICATE"]
+    : legal.enterprise_type === "PARTNERSHIP" ? ["BUSINESS_REGISTRATION_CERTIFICATE", "COMPANY_CHARTER"]
+    : ["BUSINESS_REGISTRATION_CERTIFICATE", "COMPANY_CHARTER", "APPOINTMENT_DECISION"];
+  return { LEGAL_REPRESENTATIVE: pick(byLaw), AUTHORIZED_REPRESENTATIVE: pick(["POWER_OF_ATTORNEY", "AUTHORIZATION_CONTRACT"]) };
+}
 const TERMINATION_TYPES: Record<string, string> = {
   AMENDED_REGISTRATION_CERTIFICATE: "Giấy chứng nhận đăng ký thay đổi", DISMISSAL_DECISION: "Quyết định miễn nhiệm",
   AUTHORIZATION_TERMINATION: "Văn bản chấm dứt ủy quyền", OTHER: "Khác",
@@ -439,6 +451,15 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
       revision: "capture", generated_at: NOW, expires_at: "2026-10-13T02:00:00.000Z",
     });
 
+    /* ---- "Tệp căn cứ" of a representative, attached on upload (DocumentUploadController, no reading) ---- */
+    if (path === "/v1/document-uploads/settings") return send({ reading: false });
+    if (path === "/v1/document-uploads" && method === "POST") {
+      const body = request.postDataBuffer()?.toString("latin1") ?? "";
+      const fileName = Buffer.from(body.match(/filename="([^"]+)"/)?.[1] ?? "", "latin1").toString("utf8");
+      return send({ file_token: `basis-${fileName}`, file_name: fileName, media_type: "application/pdf", size: body.length,
+        expires_at: "2026-10-13T02:00:00.000Z", reading: null }, 200, "Đã tải tệp lên.");
+    }
+
     /* ---- Shell ---- */
     if (path === "/v1/me/employee-invitations/count") return send({ pending: 0 });
     if (path === "/v1/shops/list-options") return send({ internal_allowed: true, shops_allowed: false, types: [], statuses: [],
@@ -641,6 +662,7 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
           status: live ? "ACTIVE" : "ENDED", status_name: live ? "Đang hiệu lực" : "Đã kết thúc",
           basis: repDoc(r.basis, BASIS_TYPES), termination_basis: repDoc(r.termination, TERMINATION_TYPES),
           end_reason: live ? null : r.end_reason, version: r.version, actions: { update: action(r), terminate: action(r) },
+          has_basis_document: Boolean(r.basis),
         };
       };
       if (!options && !repId && method === "GET") {
@@ -661,6 +683,7 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
         representative_types: !legal ? [] : Object.entries(REP_TYPES).filter(([code]) => legal.legal_form !== "INDIVIDUAL" || code === "AUTHORIZED_REPRESENTATIVE")
           .map(([code, name]) => ({ code, name })),
         basis_document_types: choices(BASIS_TYPES), termination_basis_types: choices(TERMINATION_TYPES),
+        basis_document_types_by_type: basisByType(legal), registration_document_available: Boolean(legal?.document),
         household_owner_name: legal?.household_owner_name ?? null, employees: EMPLOYEES[unit.id] ?? [],
       });
       if (!active && method !== "GET") return fail(409, "ORGANIZATION_NOT_ACTIVE", `${unit.name} đang tạm ngưng, kích hoạt lại rồi mới thay đổi được người đại diện.`);
@@ -793,6 +816,8 @@ export const HN_REGISTRY_NAME = HN_REGISTRY;
 export const field = (page: Page, id: string) => page.locator(`[id="${id}"]`);
 /** The custom listbox of a Select: opens it, waits for the option and picks it. */
 export async function pick(page: Page, id: string, option: string) {
+  const searchTrigger = page.locator(`button[id="${id}"][aria-haspopup="listbox"]`);
+  if (await searchTrigger.count()) return searchPick(page, id, option);
   const trigger = page.locator(`select[id="${id}"] + [role="combobox"]`);
   await expect(trigger).toBeEnabled();
   const target = page.locator(`[id="${id}-options-list"]`).getByRole("option", { name: option, exact: true });
@@ -803,26 +828,17 @@ export async function pick(page: Page, id: string, option: string) {
   await target.click();
   await expect(trigger).toContainText(option);
 }
-/** Picks a date (yyyy-mm-dd) in the shared calendar: year, month, then the day of that month. */
+/** A SearchSelect (a button opening a searchable list, e.g. "Tài khoản liên kết"): opens it and picks the option. */
+async function searchPick(page: Page, id: string, option: string) {
+  const trigger = page.locator(`button[id="${id}"]`);
+  await expect(trigger).toBeEnabled();
+  await trigger.click();
+  await page.locator(`[role="listbox"][aria-labelledby="${id}"]`).getByRole("option").filter({ hasText: option }).first().click();
+  await expect(trigger).toContainText(option);
+}
+/** Picks a date (yyyy-mm-dd) in the calendar the field `id` opens. */
 export async function pickDate(page: Page, id: string, iso: string) {
-  const [year, month, dayOfMonth] = iso.split("-").map(Number) as [number, number, number];
-  const container = field(page, id).locator("xpath=..");
-  await field(page, id).click();
-  const calendar = container.getByRole("dialog", { name: "Lịch chọn ngày" });
-  await calendar.waitFor();
-  await calendar.getByRole("button", { name: "Chọn năm" }).click();
-  const years = calendar.getByRole("group", { name: "Danh sách năm" });
-  for (let i = 0; i < 10 && !(await years.getByRole("button", { name: String(year), exact: true }).isVisible()); i++) {
-    const first = Number((await years.locator("span").first().textContent())?.split("–")[0]);
-    await years.getByRole("button", { name: first > year ? "12 năm trước" : "12 năm sau" }).click();
-  }
-  await years.getByRole("button", { name: String(year), exact: true }).click();
-  await calendar.getByRole("button", { name: "Chọn tháng" }).click();
-  await calendar.getByRole("group", { name: "Danh sách tháng" }).getByRole("button", { name: `Tháng ${month}`, exact: true }).click();
-  // Days of the neighbouring months share the grid: small numbers repeat at the end, large ones at the start.
-  const days = calendar.getByRole("button", { name: String(dayOfMonth), exact: true });
-  await (dayOfMonth < 15 ? days.first() : days.last()).click();
-  await calendar.waitFor({ state: "hidden" });
+  await pickCalendarDay(field(page, id), iso);
 }
 /** Back to the top of the workspace pane before a full-page picture, with no field left in focus. */
 export async function scrollTop(page: Page) {

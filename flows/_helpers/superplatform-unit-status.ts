@@ -490,7 +490,8 @@ async function mockUnits(page: Page, log: (line: string) => void, role: Role, st
 export async function openUnit(page: Page, unit: { id: string; name: string }) {
   await page.goto(`/workspace/organizations/${unit.id}`);
   await page.getByRole("heading", { name: "Tổng quan tổ chức", exact: true }).waitFor();
-  await page.getByRole("heading", { name: unit.name, exact: true }).first().waitFor();
+  // The unit's name heads the side panel and the profile card, no longer as a heading.
+  await page.locator(".organization-sidebar .organization-sidebar-identity").getByText(unit.name, { exact: true }).waitFor();
   await page.getByText("Liên hệ", { exact: true }).first().waitFor();
 }
 export async function openList(page: Page, tab: "FRANCHISE_PARTNER" | "POST_OFFICE" = "FRANCHISE_PARTNER") {

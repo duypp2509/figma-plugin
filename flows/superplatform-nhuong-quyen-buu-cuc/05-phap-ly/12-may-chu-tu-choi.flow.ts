@@ -34,10 +34,9 @@ export default [
       await legalButton(page, "Sửa").click();
       await page.waitForURL("**/legal/edit");
       await field(page, "invoice_email").waitFor();
-      await press(formButton(page, "Lưu thay đổi"));
-      await dialog(page, "Sửa thông tin pháp lý?").getByRole("button", { name: "Lưu thay đổi", exact: true }).click();
-      await page.getByText(MESSAGES.unchanged, { exact: true }).waitFor();
-      await shot("khong-co-thay-doi", "Lưu khi chưa đổi gì: không có thay đổi");
+      // Nothing changed yet: "Lưu thay đổi" stays greyed instead of the server answering "Không có thay đổi."
+      await expect(formButton(page, "Lưu thay đổi")).toBeDisabled();
+      await shot("khong-co-thay-doi", "Chưa đổi gì: nút Lưu thay đổi bị khóa");
 
       // Mã xác thực sai khi xác minh.
       await openLegal(page, HA_DONG);

@@ -53,7 +53,10 @@ export default [
   }, false),
   ...["DEVICE_REAUTHENTICATION_REQUIRED", "PIN_TOO_WEAK", "INVALID_LOCK_TIMEOUT", "SCREEN_LOCK_UNAVAILABLE"].map((error, i) => pinFlow(`loi-cai-dat-${i + 1}`, `08.${i + 1}. LỖI CÀI ĐẶT — ${error}`, async ({ page, shot, mock }) => {
     mock.requireMfa = false; mock.settingsError = error;
-    await openSettings(page); await page.getByRole("button", { name: error === "INVALID_LOCK_TIMEOUT" ? "Đổi thời gian" : "Đổi PIN", exact: true }).click(); if (error !== "INVALID_LOCK_TIMEOUT") await fillPin(page); await page.getByRole("button", { name: "Lưu thay đổi", exact: true }).click();
+    await openSettings(page); await page.getByRole("button", { name: error === "INVALID_LOCK_TIMEOUT" ? "Đổi thời gian" : "Đổi PIN", exact: true }).click(); if (error !== "INVALID_LOCK_TIMEOUT") await fillPin(page);
+    // "Lưu thay đổi" stays greyed until the time differs from the saved one.
+    else await page.getByLabel("Tự khóa sau", { exact: true }).fill("20");
+    await page.getByRole("button", { name: "Lưu thay đổi", exact: true }).click();
     await page.getByRole("alert").last().waitFor(); await shot("loi", error === "DEVICE_REAUTHENTICATION_REQUIRED" ? "Cần đăng nhập lại để nhận diện trình duyệt" : error === "PIN_TOO_WEAK" ? "Máy chủ từ chối PIN yếu" : error === "INVALID_LOCK_TIMEOUT" ? "Máy chủ từ chối thời gian tự khóa" : "Dịch vụ cài đặt PIN chưa khả dụng");
   })),
 ];

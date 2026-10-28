@@ -1,5 +1,5 @@
 import {
-  contactDialog, contactFlow, editButton, expect, field, filterKind, historyDialog, openContactEdit, openHistory, openSection,
+  contactDialog, contactFlow, editButton, expect, field, filterKind, historyRows, openContactEdit, openHistory, openSection,
   pickDay, save,
 } from "../../_helpers/superplatform-unit-contacts";
 import {
@@ -78,11 +78,10 @@ export default [
       await openSection(page, POST_OFFICE_ID, "contacts");
       await openContactEdit(page);
       await field(page, "contacts.PHONE").fill("024.3355.1234");
-      await save(contactDialog(page));
-      await waitError(page, MESSAGES.noChange);
-      await shot("khong-co-thay-doi", "Cùng số, chỉ khác dấu chấm: Không có thay đổi");
+      // The web compares as the server does (a phone by its digits): "Lưu" stays greyed.
+      await expect(contactDialog(page).getByRole("button", { name: "Lưu", exact: true })).toBeDisabled();
+      await shot("khong-co-thay-doi", "Cùng số, chỉ khác dấu chấm: nút Lưu bị khóa");
 
-      await dismissError(page);
       await field(page, "contacts.PHONE").fill("024 3355 9999");
       // Another manager changes the Email while this dialog is open.
       mock.beforeWrite = () => {
@@ -106,16 +105,15 @@ export default [
     async run({ page, shot }) {
       await openSection(page, POST_OFFICE_ID, "contacts");
       await openHistory(page, HISTORY);
-      const dialog = historyDialog(page, HISTORY);
-      await expect(dialog.locator("ol li")).toHaveCount(4);
+      await expect(historyRows(page)).toHaveCount(4);
       await shot("tat-ca", "Lịch sử liên hệ, mới nhất trước");
 
-      await filterKind(dialog, "Số điện thoại");
-      await expect(dialog.locator("ol li")).toHaveCount(2);
+      await filterKind(page, "Loại liên hệ", "Số điện thoại");
+      await expect(historyRows(page)).toHaveCount(2);
       await shot("loc-so-dien-thoai", "Lọc theo loại: Số điện thoại");
 
-      await pickDay(dialog, "Từ ngày", "2026-01-01");
-      await expect(dialog.locator("ol li")).toHaveCount(1);
+      await pickDay(page, "Từ ngày", "2026-01-01");
+      await expect(historyRows(page)).toHaveCount(1);
       await shot("loc-tu-ngay", "Thêm khoảng ngày: từ 01/01/2026");
     },
   }),

@@ -1,12 +1,12 @@
 import { expect } from "playwright/test";
 import {
-  APPOINT, EDIT, HA_DONG, ME_LINH, MESSAGES, appointButton, dialog, field, openRepresentatives, pick, pickDate, press,
+  APPOINT, attachBasis, EDIT, HA_DONG, ME_LINH, MESSAGES, appointButton, dialog, field, openRepresentatives, pick, pickDate, press,
   representativeFlow, row, rowAction, scrollTop,
 } from "../../_helpers/superplatform-representatives";
 
 async function confirmAppoint(page: import("playwright").Page) {
   await press(dialog(page, APPOINT).getByRole("button", { name: "Bổ nhiệm", exact: true }));
-  await dialog(page, `${APPOINT}?`).getByRole("button", { name: "Bổ nhiệm", exact: true }).click();
+  await dialog(page, `${APPOINT}?`).getByRole("button", { name: /^(Bổ nhiệm|Xác nhận)$/ }).click();
 }
 
 export default [
@@ -44,22 +44,23 @@ export default [
       await field(page, "rep-position_title").fill("Trưởng phòng kinh doanh");
       await field(page, "rep-scope_of_authority").fill("Ký hợp đồng nhượng quyền với SuperShip");
       await pickDate(page, "rep-start_date", "2026-10-01");
+      await pickDate(page, "rep-end_date", "2027-09-30");
       await pick(page, "rep-basis_document_type", "Giấy ủy quyền");
+      await attachBasis(page, "giay-uy-quyen.pdf");
       await field(page, "rep-basis_document_number").fill("10/2026/UQ");
       await pickDate(page, "rep-basis_document_date", "2026-09-30");
       await confirmAppoint(page);
       await page.getByText(MESSAGES.repDuplicate("Theo ủy quyền"), { exact: true }).waitFor();
       await shot("trung-nguoi", "Người này đang là người đại diện theo ủy quyền của đơn vị");
 
-      // Lưu khi chưa đổi gì.
+      // Mở Sửa nhưng chưa đổi gì.
       await openRepresentatives(page, HA_DONG);
       await (await rowAction(page, "Nguyễn Văn An", "Sửa")).click();
       const box = dialog(page, EDIT);
       await field(page, "rep-full_name").waitFor();
-      await press(box.getByRole("button", { name: "Lưu", exact: true }));
-      await dialog(page, "Lưu thông tin người đại diện?").getByRole("button", { name: "Lưu", exact: true }).click();
-      await page.getByText(MESSAGES.unchanged, { exact: true }).waitFor();
-      await shot("khong-co-thay-doi", "Lưu khi chưa đổi gì: không có thay đổi");
+      // Since 27/10 "Lưu" stays greyed until something changes, instead of the server answering "Không có thay đổi".
+      await expect(box.getByRole("button", { name: "Lưu", exact: true })).toBeDisabled();
+      await shot("khong-co-thay-doi", "Chưa đổi gì: nút Lưu bị khóa");
       expect(mock.writes).toBe(0);
     },
   }),
@@ -76,6 +77,7 @@ export default [
       await expect(field(page, "rep-position_title")).toHaveValue("Chủ hộ kinh doanh");
       await pickDate(page, "rep-start_date", "2026-10-01");
       await pick(page, "rep-basis_document_type", "Giấy chứng nhận đăng ký hộ kinh doanh");
+      await attachBasis(page, "giay-chung-nhan-ho-kinh-doanh.pdf");
       await field(page, "rep-basis_document_number").fill("01H8012345");
       await pickDate(page, "rep-basis_document_date", "2025-12-15");
       await shot("ho-ten-chu-ho", "Theo pháp luật: họ tên chủ hộ điền sẵn, không sửa");

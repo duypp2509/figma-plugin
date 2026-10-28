@@ -13,6 +13,18 @@ export { codeDialog, dialog, enterCode, field, pick, pickDate, press, scrollTop,
 export const representativeFlow = (flow: Parameters<typeof unitFlow>[2]) => unitFlow("nguoi-dai-dien", "superplatform-nguoi-dai-dien-", flow);
 
 const section = (page: Page) => page.locator("section.representative-page");
+
+/**
+ * "Tệp căn cứ" (required since 27/10): attaches a PDF named after the document. A unit's own registration
+ * certificate reuses the legal profile's file, and then there is nothing to attach.
+ */
+export async function attachBasis(page: Page, fileName: string) {
+  const input = page.locator('input[type="file"][id="basis_document"]');
+  if (!(await input.count())) return;
+  await input.setInputFiles({ name: fileName, mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n") });
+  await page.locator('[data-field="basis_document"]').getByText(fileName).waitFor();
+}
 /** "Người đại diện" of a unit, loaded: the table or the empty state. */
 export async function openRepresentatives(page: Page, unit: typeof HA_DONG) {
   await page.goto(unitUrl(unit, "representatives"));
@@ -21,7 +33,7 @@ export async function openRepresentatives(page: Page, unit: typeof HA_DONG) {
   await section(page).locator(".representative-table, :text('Chưa có người đại diện')").first().waitFor();
 }
 export const appointButton = (page: Page) => section(page).locator("button").filter({ hasText: /^Bổ nhiệm người đại diện$/ });
-export const historyToggle = (page: Page) => section(page).getByRole("switch", { name: "Xem cả người đã kết thúc nhiệm kỳ" });
+export const historyToggle = (page: Page) => section(page).getByRole("switch", { name: "Hiện cả nhiệm kỳ đã kết thúc" });
 /** The table row of one term, named by the representative's full name. */
 export const row = (page: Page, name: string) => section(page).locator(".representative-table tbody tr")
   .filter({ has: page.locator("th[scope=row] > strong").getByText(name, { exact: true }) });
