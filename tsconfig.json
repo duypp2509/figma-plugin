@@ -12,5 +12,5 @@
     "esModuleInterop": true,
     "resolveJsonModule": true
   },
-  "include": ["capture", "server", "shared", "flows", "scripts", "capture.config.ts"]
+  "include": ["capture", "server", "shared", "web", "flows", "scripts", "capture.config.ts"]
 }

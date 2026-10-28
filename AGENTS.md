@@ -27,6 +27,7 @@ Chạy từ thư mục gốc của repo. Trong PowerShell dùng `.\capture`; tro
 | `.\capture --flow <id>` | Chụp và gửi sang Figma (plugin phải đang mở) |
 | `.\capture --flow "<tiền-tố>*"` | Mọi luồng có id bắt đầu bằng tiền tố |
 | `.\capture --all` | Mọi luồng, trừ luồng có `caution` |
+| `.\web` | Trang `http://127.0.0.1:4646` cho người dùng: xem ảnh trong `captures/`, chọn nhiều luồng gửi sang Figma, chụp lại (`--no-figma`). Giữ relay 8765 nếu chưa ai giữ |
 | `npm run typecheck` | Kiểm tra kiểu sau khi sửa code |
 
 Sau mỗi lần chạy, kết quả nằm ở `captures/_last-run.json` (trạng thái từng luồng, danh sách ảnh, đường dẫn `_loi.png` và `_loi.log` nếu lỗi). Đọc file này thay vì dò chữ trong terminal. Lệnh thoát mã khác 0 khi có luồng chưa hoàn tất.
@@ -53,6 +54,7 @@ Sau mỗi lần chạy, kết quả nằm ở `captures/_last-run.json` (trạng
 | `flows/_helpers/` | Backend giả lập, phiên đăng nhập, captcha, đồng hồ |
 | `plugin/src/` | Plugin Figma; sửa xong phải `npm run build:plugin` và mở lại plugin |
 | `server/`, `shared/types.ts` | Server trung chuyển và định dạng tin nhắn |
+| `web/` | Trang web cục bộ: `server.ts` (HTTP + gửi ảnh có sẵn sang Figma), `library.ts` (đọc `captures/` và `_steps.json`), `public/` |
 | `captures/` | Ảnh đầu ra, không vào git |
 
 ## Ngôn ngữ

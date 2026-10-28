@@ -72,6 +72,32 @@ const AUTO_PASTE_LEAD_MS = 8000;
 const AUTO_PASTE_NUDGE_MS = 20_000;
 const pad2 = (value: number) => String(value).padStart(2, "0");
 
+/** Written next to the pictures, so they can be sent to Figma again later under the same frame names. */
+export const STEPS_FILE = "_steps.json";
+
+export interface SavedStep {
+  /** The picture, inside the variant's folder. */
+  file: string;
+  stepId: string;
+  title: string;
+  code?: string;
+  frameName: string;
+}
+
+/** Frame names follow "<Product> - <STEP NAME IN CAPITALS>". */
+export function frameNameOf(appLabel: string, title: string, code?: string): string {
+  return `${appLabel} - ${code ? `${code} ` : ""}${title.toLocaleUpperCase("vi-VN")}`;
+}
+
+export function flowStartOf(variant: Variant, config: CaptureConfig): FlowStart {
+  const viewport = config.viewports[variant.viewport]!;
+  return {
+    type: "flow_start", flowId: variant.key, flowName: variant.sectionName,
+    ...(variant.groups ? { groups: variant.groups } : {}),
+    viewport: { width: viewport.width, height: viewport.height }, dpr: config.deviceScaleFactor, layout: config.layout,
+  };
+}
+
 /** One run per viewport × actor a flow declares; each becomes its own Section. */
 export function expandVariants(options: Pick<RunOptions, "config" | "flows" | "only" | "viewport" | "actor" | "sectionName" | "includeCautioned" | "onCautionSkip">): Variant[] {
   const { config } = options;
@@ -224,11 +250,8 @@ async function runVariant(browser: Browser, variant: Variant, options: RunOption
   const relativeDirectory = path.relative(options.root, directory);
   const stepIds = new Set<string>();
   const layerSteps: LayerStep[] = [];
-  const flowStart: FlowStart = {
-    type: "flow_start", flowId: key, flowName: variant.sectionName,
-    ...(variant.groups ? { groups: variant.groups } : {}),
-    viewport: { width: viewport.width, height: viewport.height }, dpr: config.deviceScaleFactor, layout: config.layout,
-  };
+  const savedSteps: SavedStep[] = [];
+  const flowStart = flowStartOf(variant, config);
   let started = false;
   let failure: Error | null = null;
 
@@ -298,8 +321,10 @@ async function runVariant(browser: Browser, variant: Variant, options: RunOption
     await writeFile(file, png);
     const image = sliceImage(png);
     log(`${pad2(stepIndex + 1)} ${title} → ${path.relative(options.root, file)} (${image.width}×${image.height}${image.tiles.length > 1 ? `, ${image.tiles.length} lát` : ""})`);
-    // Frame names follow "<Product> - <STEP NAME IN CAPITALS>".
-    const frameName = `${app.label ?? flow.app} - ${shotOptions.code ? `${shotOptions.code} ` : ""}${title.toLocaleUpperCase("vi-VN")}`;
+    const frameName = frameNameOf(app.label ?? flow.app, title, shotOptions.code);
+    savedSteps.push({ file: `${baseName}.png`, stepId, title, ...(shotOptions.code ? { code: shotOptions.code } : {}), frameName });
+    await writeFile(path.join(directory, STEPS_FILE), `${JSON.stringify({ flowId: key, steps: savedSteps }, null, 2)}
+`);
     if (layersHtml) {
       // Pasted into Figma later, once every flow has been captured: see pasteLayers().
       await writeFile(path.join(directory, `${baseName}.layers.html`), layersHtml);

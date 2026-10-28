@@ -13,6 +13,7 @@ export class FigmaClient {
   private waiters: Array<{ match: (ack: Ack) => boolean; resolve: (ack: Ack) => void; reject: (error: Error) => void }> = [];
   private statusListeners = new Set<() => void>();
   private pasteReady: { flowId: string; stepId: string; run: () => void } | null = null;
+  private closeListeners = new Set<() => void>();
 
   private constructor(private socket: WebSocket, private ownRelay: Relay | null) {
     socket.on("message", (data, isBinary) => {
@@ -36,7 +37,25 @@ export class FigmaClient {
         if (index >= 0) this.waiters.splice(index, 1)[0]!.resolve(message);
       }
     });
-    socket.on("close", () => this.failAll(new Error("Mất kết nối tới server trung chuyển.")));
+    socket.on("close", () => {
+      this.failAll(new Error("Mất kết nối tới server trung chuyển."));
+      for (const listener of this.closeListeners) listener();
+    });
+  }
+
+  get isPluginConnected(): boolean {
+    return this.pluginConnected;
+  }
+
+  /** Called whenever the plugin connects or disconnects. Returns the function that stops listening. */
+  onPluginStatus(listener: () => void): () => void {
+    this.statusListeners.add(listener);
+    return () => this.statusListeners.delete(listener);
+  }
+
+  /** Called once the relay connection is lost, e.g. the relay of another process stopped. */
+  onClose(listener: () => void): void {
+    this.closeListeners.add(listener);
   }
 
   /** Connects to a running relay, or starts one in this process when none is listening. */
@@ -115,6 +134,7 @@ export class FigmaClient {
   }
 
   async close(): Promise<void> {
+    this.closeListeners.clear();
     this.socket.removeAllListeners("close");
     this.socket.close();
     await this.ownRelay?.close();

@@ -11,6 +11,7 @@
     "capture": "tsx capture/cli.ts",
     "doctor": "tsx capture/cli.ts --doctor",
     "server": "tsx server/index.ts",
+    "web": "tsx web/server.ts --open",
     "build:plugin": "node scripts/build-plugin.mjs",
     "test:send": "tsx scripts/send-test-images.ts",
     "test:relay": "tsx scripts/relay-self-test.ts",

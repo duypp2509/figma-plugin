@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flow Capture</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Crect x='7' y='9' width='8' height='14' rx='2' fill='white'/%3E%3Crect x='17' y='9' width='8' height='14' rx='2' fill='white' opacity='.6'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span>Flow Capture</span>
+    </div>
+    <div class="topbar-right">
+      <span id="plugin-status" class="status-pill" data-state="off">
+        <span class="dot" aria-hidden="true"></span><span class="label">Đang kết nối…</span>
+      </span>
+      <button id="reload" class="btn btn-ghost" type="button" title="Đọc lại thư mục captures/">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3.5V6h-2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Làm mới
+      </button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-tools">
+        <label class="search">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m13.5 13.5 3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <input id="search" type="search" placeholder="Tìm luồng, id, nhóm…" autocomplete="off">
+        </label>
+        <div id="app-filters" class="filters app-filters" role="tablist" aria-label="Lọc theo ứng dụng"></div>
+        <div class="filters" role="tablist" aria-label="Lọc luồng">
+          <button type="button" role="tab" data-filter="all" class="chip">Tất cả <span data-count="all"></span></button>
+          <button type="button" role="tab" data-filter="images" class="chip">Có ảnh <span data-count="images"></span></button>
+          <button type="button" role="tab" data-filter="failed" class="chip">Lỗi <span data-count="failed"></span></button>
+        </div>
+        <div class="list-actions">
+          <button id="select-visible" type="button" class="link">Chọn tất cả đang hiện</button>
+          <button id="collapse-all" type="button" class="link">Thu gọn nhóm</button>
+        </div>
+      </div>
+      <nav id="flow-list" class="flow-list" aria-label="Danh sách luồng"></nav>
+    </aside>
+
+    <main id="detail" class="detail"></main>
+  </div>
+
+  <div id="selection-bar" class="selection-bar" hidden>
+    <div class="selection-info">
+      <strong id="selection-count"></strong>
+      <span id="selection-meta" class="muted"></span>
+    </div>
+    <div class="selection-actions">
+      <button id="clear-selection" type="button" class="btn btn-ghost">Bỏ chọn</button>
+      <button id="capture-selected" type="button" class="btn btn-secondary">Chụp lại</button>
+      <button id="send-selected" type="button" class="btn btn-primary">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h12m-4-4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Gửi sang Figma
+      </button>
+    </div>
+  </div>
+
+  <section id="job" class="job" hidden aria-live="polite"></section>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <dialog id="viewer" class="viewer">
+    <div class="viewer-head">
+      <div class="viewer-title">
+        <span id="viewer-position" class="step-number"></span>
+        <div>
+          <div id="viewer-name" class="viewer-name"></div>
+          <div id="viewer-frame" class="muted mono"></div>
+        </div>
+      </div>
+      <div class="viewer-actions">
+        <a id="viewer-open" class="btn btn-ghost" target="_blank" rel="noopener">Mở ảnh gốc</a>
+        <button type="button" class="icon-btn" data-viewer="close" aria-label="Đóng" autofocus>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="viewer-body">
+      <button type="button" class="viewer-nav prev" data-viewer="prev" aria-label="Bước trước">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 4-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="viewer-scroll"><img id="viewer-image" alt=""></div>
+      <button type="button" class="viewer-nav next" data-viewer="next" aria-label="Bước sau">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 4 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </dialog>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>

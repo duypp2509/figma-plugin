@@ -16,6 +16,7 @@ CLI (Playwright)  ──ws──►  server local 127.0.0.1:8765  ──ws──
 3. [Chạy thử lần đầu](#3-chạy-thử-lần-đầu)
    - [Dùng với công cụ AI](#dùng-với-công-cụ-ai)
 4. [Các lệnh và cờ](#4-các-lệnh-và-cờ)
+   - [Giao diện web: xem ảnh và gửi sang Figma](#giao-diện-web-xem-ảnh-và-gửi-sang-figma)
 5. [Cửa sổ plugin trong Figma](#5-cửa-sổ-plugin-trong-figma)
 6. [Kết quả trên Figma](#6-kết-quả-trên-figma)
 7. [Chế độ layers: frame chỉnh sửa được](#7-chế-độ-layers-frame-chỉnh-sửa-được)
@@ -150,6 +151,23 @@ Gõ `.\capture` không kèm gì thì công cụ mở menu và hỏi lần lượ
 Dùng phím mũi tên để di chuyển, Space để chọn, Enter để xác nhận. Ở bước nào cũng quay lại bước trước được bằng Esc hoặc mục "← Quay lại"; Ctrl+C thoát hẳn. Trước khi chạy, menu in ra "Lệnh tương đương" để lần sau bạn gõ thẳng hoặc đưa vào script.
 
 Mục "Xem danh sách luồng" cho chọn một nhóm rồi hiện id và tên các luồng trong nhóm đó.
+
+### Giao diện web: xem ảnh và gửi sang Figma
+
+```powershell
+.\web
+```
+
+Mở trang `http://127.0.0.1:4646` trên trình duyệt (Ctrl+C trong terminal để tắt). Trang đọc thẳng thư mục `captures/`, không chạy lại luồng nào khi chỉ xem hay gửi:
+
+- **Cột trái**: mọi luồng, xếp theo thư mục của `flows/` như `--list`, kèm số ảnh và dấu "Lỗi" nếu lần chụp gần nhất chưa hoàn tất. Ô tìm kiếm lọc theo tên, id, tên Section; phím `/` để nhảy vào ô tìm.
+- **Bên phải**: ảnh của luồng đang mở, đúng thứ tự bước, mỗi ảnh kèm tên bước và tên frame sẽ có trên Figma. Bấm ảnh để xem to, dùng ← → để chuyển bước.
+- **Gửi sang Figma**: tích chọn nhiều luồng (hoặc cả nhóm), rồi bấm "Gửi sang Figma" ở thanh dưới. Nút chỉ bấm được khi góc trên báo "Plugin Figma đã kết nối": mở Figma desktop → Plugins → Development → Flow Capture và giữ cửa sổ plugin mở. Ghi đè hay tạo Section mới vẫn chọn trong cửa sổ plugin.
+- **Chụp lại**: chạy lại các luồng đã chọn như `.\capture --flow <id> --no-figma`, chỉ lưu ra đĩa; xong thì trang tự đọc lại ảnh. Luồng có cảnh báo ⚠ không chụp từ trang này.
+
+Trang dùng chung server trung chuyển ở cổng 8765 với CLI: chưa có thì tự khởi động. Vì vậy đừng tắt trang trong lúc một lệnh `.\capture` khác đang gửi sang Figma, lệnh đó sẽ mất kết nối. Đổi cổng của trang bằng biến `FFC_WEB_PORT`.
+
+Tên bước được lưu vào `captures/<luồng>/_steps.json` mỗi lần chụp. Ảnh chụp trước khi có file này lấy tên từ mã luồng; tên dựng lúc chạy (ví dụ có kênh SMS/Zalo) thì không lấy được, trang đánh dấu "tên tạm" và frame mang tên theo `stepId`. Chụp lại luồng đó để có đúng tên.
 
 ### Gõ lệnh trực tiếp
 
@@ -871,6 +889,7 @@ npx tsx scripts/fake-plugin.ts   # plugin giả, để thử CLI khi không có 
 | --- | --- |
 | `setup.cmd` | Lệnh `.\setup`: cài đặt một lần sau khi lấy code |
 | `capture.cmd` | Lệnh `.\capture` |
+| `web.cmd` | Lệnh `.\web`: trang xem ảnh và gửi sang Figma |
 | `AGENTS.md`, `CLAUDE.md`, `.claude/` | Hướng dẫn, quy trình và quyền lệnh cho công cụ AI |
 | `capture.config.ts` | Cấu hình chung: app, viewport, phần tử ẩn, bố cục trên Figma |
 | `capture/` | CLI: đọc cấu hình, tìm luồng, chạy Playwright, cắt ảnh, gửi sang Figma, chế độ layers |
@@ -878,6 +897,7 @@ npx tsx scripts/fake-plugin.ts   # plugin giả, để thử CLI khi không có 
 | `flows/_helpers/` | Code dùng chung của các luồng: backend giả lập, captcha, phiên đăng nhập |
 | `plugin/` | Plugin Figma: `src/` là mã nguồn, `dist/` là bản build, `manifest.json` để import |
 | `server/` | Server trung chuyển WebSocket giữa CLI và plugin |
+| `web/` | Trang web cục bộ: server HTTP, đọc `captures/`, gửi ảnh có sẵn sang Figma |
 | `shared/types.ts` | Định dạng tin nhắn giữa CLI, server và plugin |
 | `scripts/` | Build plugin và các script tự kiểm tra |
 | `captures/` | Ảnh đầu ra (không vào git) |
