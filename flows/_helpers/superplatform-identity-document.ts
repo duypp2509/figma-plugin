@@ -1,4 +1,5 @@
 import type { Page } from "playwright";
+import { expect } from "playwright/test";
 import { defineFlow, type FlowContext } from "../../capture";
 import { mockPin } from "./superplatform-screen-lock";
 
@@ -20,7 +21,6 @@ export const MESSAGES = {
   expired: "Căn cước đã hết hạn.",
   otherNumber: "Căn cước khác số đã xác thực. Liên hệ Quản trị hệ thống.",
   inUse: "Số căn cước này không dùng được. Liên hệ Quản trị hệ thống.",
-  busy: "Hệ thống xác thực đang bận. Hãy thử lại sau.",
 };
 
 type Status = "NONE" | "VERIFIED" | "EXPIRING" | "EXPIRED";
@@ -28,8 +28,7 @@ type Place = { province_code: string; province_name: string; ward_code: string; 
 export type Outcome =
   | { result: "VERIFIED" }
   | { result: "RETAKE"; retake: "FRONT" | "BACK" | "FACE"; message: string }
-  | { result: "NOT_MATCHED" | "NOT_LIVE" | "REFUSED"; message: string }
-  | { result: "ERROR"; status: number; code: string; message: string };
+  | { result: "NOT_MATCHED" | "NOT_LIVE" | "REFUSED"; message: string };
 /** An answer of the card read before the face ("Tiếp tục" after the back side); READY when none is queued. */
 export type CardOutcome =
   | { result: "RETAKE"; retake: "FRONT" | "BACK"; message: string }
@@ -38,7 +37,7 @@ export type CardOutcome =
 const verifiedCard = () => ({
   number: "********0482", full_name: "Nguyễn Minh Anh", birth_date: "1994-08-17", gender: "FEMALE" as const,
   issued_on: "2021-04-12", issued_place: "Cục Cảnh sát quản lý hành chính về trật tự xã hội", valid_until: "2034-08-17",
-  verified_at: AT, images_available: true, card_warnings: [] as string[],
+  verified_at: AT, images_available: true, images_deleted: false, card_warnings: [] as string[],
 });
 
 export interface IdentityMock {
@@ -47,7 +46,6 @@ export interface IdentityMock {
   consent: boolean;
   consentAvailable: boolean;
   available: boolean;
-  loadError: boolean;
   lockedUntil: string | null;
   remaining: number;
   sameAsPermanent: boolean | null;
@@ -70,7 +68,7 @@ export function identityFlow(id: string, name: string, run: (ctx: IdentityContex
       await mockPin(ctx.page, ctx.log, false);
       await fakeCamera(ctx.page);
       const mock: IdentityMock = { status: "NONE", card: null, consent: false, consentAvailable: true, available: true,
-        loadError: false, lockedUntil: null, remaining: 5, sameAsPermanent: null, current: null, outcomes: [], verifications: 0,
+        lockedUntil: null, remaining: 5, sameAsPermanent: null, current: null, outcomes: [], verifications: 0,
         cardOutcomes: [], cardRemaining: 5, ...setup };
       if (mock.status !== "NONE" && !mock.card) mock.card = verifiedCard();
       await mockIdentity(ctx, mock);
@@ -91,7 +89,7 @@ async function mockIdentity({ context }: FlowContext, mock: IdentityMock) {
   const document = () => ({
     status: mock.status,
     ...(mock.card ?? { number: null, full_name: null, birth_date: null, gender: null, issued_on: null, issued_place: null,
-      valid_until: null, verified_at: null, images_available: false, card_warnings: [] }),
+      valid_until: null, verified_at: null, images_available: false, images_deleted: false, card_warnings: [] }),
     residence: { permanent_on_card: mock.card ? PERMANENT : null, permanent: null,
       current_same_as_permanent: mock.sameAsPermanent, current: mock.current, updated_at: mock.sameAsPermanent !== null || mock.current ? AT : null },
   });
@@ -122,11 +120,10 @@ async function mockIdentity({ context }: FlowContext, mock: IdentityMock) {
 
     if (path === "/v1/me/consents/ekyc-face") {
       if (method === "POST") mock.consent = true;
-      if (method === "DELETE") { mock.consent = false; if (mock.card) mock.card.images_available = false; }
+      if (method === "DELETE") { mock.consent = false; if (mock.card) Object.assign(mock.card, { images_available: false, images_deleted: true }); }
       return send(consent());
     }
     if (path === "/v1/me/identity-document" && method === "GET") {
-      if (mock.loadError) return send({ code: "INTERNAL_ERROR" }, 500, "Chưa tải được giấy tờ định danh. Hãy thử lại.");
       return send({ document: document(), available: mock.available, locked_until: mock.lockedUntil,
         remaining_attempts: mock.remaining, face_scan_available: false });
     }
@@ -142,7 +139,6 @@ async function mockIdentity({ context }: FlowContext, mock: IdentityMock) {
       if (mock.lockedUntil) return send(verification("LOCKED", lockedMessage(mock.lockedUntil)));
       mock.verifications++;
       const outcome = mock.outcomes.shift() ?? { result: "VERIFIED" };
-      if (outcome.result === "ERROR") return send({ code: outcome.code }, outcome.status, outcome.message);
       if (outcome.result === "VERIFIED") {
         mock.status = "VERIFIED"; mock.card = verifiedCard(); mock.remaining = 5;
         if (mock.sameAsPermanent === null) mock.sameAsPermanent = true;
@@ -170,6 +166,14 @@ async function mockIdentity({ context }: FlowContext, mock: IdentityMock) {
     const children = /^\/api\/address\/v1\/administrative-units\/([^/]+)\/children$/.exec(path);
     if (children) return send({ units: (WARDS[decodeURIComponent(children[1]!)] ?? [])
       .map(([code, name]) => ({ code, name, unit_level: 3 })) });
+    // The workspace shell around the page, and the face capture modes (the photo by hand allowed).
+    if (path === "/v1/me/reminders") return send({ items: [], banners: [], notices: [] });
+    if (path === "/v1/me/employee-invitations/count") return send({ count: 0 });
+    if (path === "/v1/me/profile-update-request") return send(null);
+    if (path === "/v1/public/apps/current") return send({ id: "app-superplatform", code: "SUPERPLATFORM", name: "SuperPlatform",
+      app_group: "INTERNAL", status: "ACTIVE" });
+    if (path === "/v1/me/access-context/token") return send({ token: "capture-order-token", expires_at: "2026-10-13T02:00:00.000Z" });
+    if (path === "/v1/public/ekyc/face-modes") return send({ manual: true, auto: false });
     return route.fallback();
   });
 }
@@ -196,6 +200,15 @@ function lockedMessage(until: string) {
 export async function fakeCamera(page: Page) {
   // tsx keeps function names with a "__name" helper the page does not have.
   await page.addInitScript("window.__name = window.__name || ((target) => target);");
+  // DevCardButton (features/dev-tools), the dev "Căn cước mẫu" button beside the camera, is never part of a picture.
+  await page.addInitScript(() => {
+    const hide = () => {
+      const style = document.createElement("style");
+      style.textContent = '[aria-label="Căn cước mẫu"] { visibility: hidden !important; }';
+      document.head.append(style);
+    };
+    if (document.head) hide(); else document.addEventListener("DOMContentLoaded", hide, { once: true });
+  });
   await page.addInitScript(() => {
     const w = window as unknown as Record<string, unknown>;
     w.__ffcCamera = "ok";
@@ -298,6 +311,9 @@ export async function fakeCamera(page: Page) {
       ctx.fillStyle = desk; ctx.fillRect(0, 0, canvas.width, canvas.height);
       const width = canvas.width * 0.72;
       card(ctx, (canvas.width - width) / 2, (canvas.height - width / (85.6 / 54)) / 2, width, String(w.__ffcSide));
+      // Frames drawn since the card was last turned, read by filmSide().
+      w.__ffcFrames = w.__ffcDrawnSide === w.__ffcSide ? Number(w.__ffcFrames ?? 0) + 1 : 1;
+      w.__ffcDrawnSide = w.__ffcSide;
     }
 
     /** A citizen ID photo as a data URL, for "Tải ảnh". {@code small} is below the size the app accepts. */
@@ -336,11 +352,6 @@ export const dialog = (page: Page) => page.getByRole("dialog").last();
 export const startButton = (page: Page) => page.getByRole("button", { name: "Xác thực căn cước", exact: true });
 export const nextButton = (page: Page) => page.getByRole("button", { name: "Tiếp tục", exact: true });
 
-export async function giveConsent(page: Page) {
-  await page.getByRole("checkbox", { name: "Tôi đã đọc và đồng ý" }).check();
-  await page.getByRole("button", { name: "Đồng ý và tiếp tục", exact: true }).click();
-  await page.getByText("Mặt trước căn cước", { exact: true }).waitFor();
-}
 export async function waitCamera(page: Page) {
   await page.getByText("Đang mở camera…").waitFor({ state: "hidden" });
 }
@@ -348,9 +359,12 @@ export async function waitCamera(page: Page) {
 export async function filmSide(page: Page, side: "FRONT" | "BACK") {
   await page.evaluate((value) => { (window as unknown as Record<string, unknown>).__ffcSide = value; }, side);
   await waitCamera(page);
-  // Three redraws of the fake camera (every 100 ms) so the preview shows the new side. Waited from Node: a promise
-  // polled inside the page stalled under load and timed out.
-  await page.waitForTimeout(300);
+  // Three redraws of the fake camera with the new side, so the preview shows it. Polled from Node: a promise polled
+  // inside the page stalled under load and timed out.
+  await expect.poll(() => page.evaluate(value => {
+    const w = window as unknown as Record<string, unknown>;
+    return w.__ffcDrawnSide === value && Number(w.__ffcFrames ?? 0) >= 3;
+  }, side), { intervals: [50], timeout: 15_000 }).toBe(true);
 }
 /** Takes the card side shown by the wizard with the camera. */
 export async function takeCard(page: Page, side: "FRONT" | "BACK") {
@@ -376,12 +390,6 @@ export async function confirmCard(page: Page) {
   await page.getByRole("button", { name: "Xác nhận", exact: true }).click();
   await page.getByText("Đưa khuôn mặt vào khung", { exact: true }).waitFor();
 }
-export async function takeBothSides(page: Page) {
-  await takeCard(page, "FRONT"); await nextButton(page).click();
-  await page.getByText("Mặt sau căn cước", { exact: true }).waitFor();
-  await takeCard(page, "BACK"); await nextButton(page).click();
-  await readCardShown(page); await confirmCard(page);
-}
 /** The system's error dialog ("Chưa xác thực được") a refused card opens over the wizard. */
 export const refusedDialog = (page: Page) => page.getByRole("alertdialog", { name: "Chưa xác thực được" });
 export async function takeFace(page: Page) {
@@ -394,19 +402,7 @@ export const stepUpCode = (page: Page) => page.getByRole("textbox", { name: "Mã
 export async function sendFace(page: Page) {
   await page.getByRole("button", { name: "Gửi xác thực", exact: true }).click();
 }
-export async function confirmCode(page: Page) {
-  await stepUpCode(page).pressSequentially(STEP_UP_CODE);
-  await page.getByRole("button", { name: "Xác nhận", exact: true }).click();
-  await stepUpCode(page).waitFor({ state: "hidden" });
-}
 /** Takes a face and sends it: the wizard then shows what the server answered. */
 export async function verifyFace(page: Page) {
   await takeFace(page); await sendFace(page);
-}
-/** From the empty card through consent, both sides and what was read, to the face step. */
-export async function reachFace(page: Page, consent = true) {
-  await startButton(page).click();
-  if (consent) await giveConsent(page);
-  else await page.getByText("Mặt trước căn cước", { exact: true }).waitFor();
-  await takeBothSides(page);
 }

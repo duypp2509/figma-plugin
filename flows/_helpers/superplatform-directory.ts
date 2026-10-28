@@ -225,10 +225,16 @@ async function mockDirectory(page: Page, log: (line: string) => void, mock: Dire
   function list(params: URLSearchParams) {
     const get = (key: string) => params.get(key) || "";
     const type = get("typeCode"), status = get("status") || "OPERATING", search = get("search").trim(), sort = get("sort") || "created_desc";
-    const province = get("provinceCode"), wardCode = get("wardCode"), franchiseId = get("franchiseId"), model = get("operationModel");
+    const province = get("provinceCode"), wardCode = get("wardCode"), franchiseId = get("franchiseId");
+    // "Bộ lọc" panel: several statuses and models as "A,B"; a choice criterion with its operator (IS, IS_NOT, EMPTY).
+    const statuses = status.split(",").filter(Boolean), models = get("operationModel").split(",").filter(Boolean);
+    const provinceOp = get("provinceOp") || "IS", wardOp = get("wardOp") || "IS", legalForm = get("legalForm"), legalFormOp = get("legalFormOp") || "IS";
+    const postOfficeMin = get("postOfficeMin"), postOfficeMax = get("postOfficeMax");
+    const choice = (value: string | null | undefined, op: string, wanted: string) =>
+      op === "EMPTY" ? !value : !wanted || (op === "IS_NOT" ? value !== wanted : value === wanted);
     const size = Number(get("size") || 20), pageIndex = Number(get("page") || 0);
     if (search.length > 100) return fieldError("search", MESSAGES.searchTooLong);
-    if (wardCode && !province) return fieldError("wardCode", MESSAGES.provinceFirst);
+    if (wardCode && (!province || provinceOp !== "IS")) return fieldError("wardCode", MESSAGES.provinceFirst);
     if (province && wardCode && !WARDS[province]?.some(w => w.code === wardCode)) return fieldError("wardCode", MESSAGES.wardOutside);
     if (type === "FRANCHISE_PARTNER" && !admin) return { status: 403, message: MESSAGES.noFranchiseList, data: { code: "DIRECTORY_FORBIDDEN" } };
     const digits = (() => {
@@ -246,10 +252,13 @@ async function mockDirectory(page: Page, log: (line: string) => void, mock: Dire
     };
     const items = inScope()
       .filter(unit => !type || unit.type_code === type)
-      .filter(unit => status === "ALL" || (status === "OPERATING" ? unit.status !== "CLOSED" : unit.status === status))
+      .filter(unit => status === "ALL" || (status === "OPERATING" ? unit.status !== "CLOSED" : statuses.includes(unit.status)))
       .filter(matches)
-      .filter(unit => (!province || unit.province === province) && (!wardCode || unit.ward === wardCode))
-      .filter(unit => !model || unit.model === model)
+      .filter(unit => choice(unit.province, provinceOp, province) && choice(unit.ward, wardOp, wardCode))
+      .filter(unit => !models.length || models.includes(unit.model ?? ""))
+      .filter(unit => choice(unit.legal?.form, legalFormOp, legalForm))
+      .filter(unit => { const count = postOfficeCount(unit) ?? 0;
+        return (!postOfficeMin || count >= Number(postOfficeMin)) && (!postOfficeMax || count <= Number(postOfficeMax)); })
       .filter(unit => !franchiseId || (unit.type_code === "POST_OFFICE" && unit.parent_id === franchiseId))
       .map(unit => ({ unit, row: row(unit), count: postOfficeCount(unit) }));
     const newest = (a: { created_at: string }, b: { created_at: string }) => b.created_at.localeCompare(a.created_at);
@@ -286,6 +295,7 @@ async function mockDirectory(page: Page, log: (line: string) => void, mock: Dire
       franchises: franchises.map(pick).sort((a, b) => a.name.localeCompare(b.name, "vi")),
       post_offices: offices.map(pick).sort((a, b) => a.name.localeCompare(b.name, "vi")),
       operation_models: OPERATION_MODELS.map(({ code, name }) => ({ code, name })).sort((a, b) => a.name.localeCompare(b.name, "vi")),
+      legal_forms: [{ code: "ENTERPRISE", name: "Doanh nghiệp" }, { code: "HOUSEHOLD_BUSINESS", name: "Hộ kinh doanh" }, { code: "INDIVIDUAL", name: "Cá nhân" }],
       viewer_type: viewer.org.type, viewer_organization_id: viewer.org.id,
       tabs: admin ? [{ code: "FRANCHISE_PARTNER", name: "Nhượng quyền" }, { code: "POST_OFFICE", name: "Bưu cục" }] : [{ code: "POST_OFFICE", name: "Bưu cục" }],
       sorts: { FRANCHISE_PARTNER: [...basicSorts, { code: "post_office_count_desc", name: "Nhiều bưu cục nhất" }, { code: "post_office_count_asc", name: "Ít bưu cục nhất" }],
@@ -325,6 +335,9 @@ async function mockDirectory(page: Page, log: (line: string) => void, mock: Dire
     if (path === "/v1/me/screen-lock/activity" || path === "/v1/me/sessions/current/activity") return send({});
     if (path === "/v1/me/employee-invitations/count") return send({ pending: 0 });
     if (path === "/v1/auth/passkey/options/autofill") return send({ available: false });
+    if (path === "/v1/public/apps/current") return send({ id: "app-superplatform", code: "SUPERPLATFORM", name: "SuperPlatform", app_group: "INTERNAL", status: "ACTIVE" });
+    if (path === "/v1/me/profile-update-request") return send(null);
+    if (path === "/v1/me/reminders") return send({ items: [], banners: [], notices: [] });
 
     /* ---- Directory ---- */
     if (path === "/v1/shops/list-options") return send(options(true));
@@ -407,21 +420,65 @@ export async function waitRows(page: Page) {
 export const tab = (page: Page, name: string) => page.getByRole("tab", { name, exact: true });
 export const nameCell = (page: Page, name: string) => page.getByRole("link", { name, exact: true });
 export const rows = (page: Page) => page.locator("table tbody tr");
-export const searchBox = (page: Page) => page.locator('input[type="search"]');
-export const advancedButton = (page: Page) => page.getByRole("button", { name: /^Bộ lọc nâng cao/ });
+/** The list's own search box (the sidebar has its "Tìm chức năng" box too). */
+export const searchBox = (page: Page) => page.locator('.dir-toolbar-search input[type="search"]');
 
-/** The custom combobox standing for the hidden native select `id`. */
-export const combo = (page: Page, id: string) => page.locator(`.ui-select:has(> select[id="${id}"]) > [role="combobox"]`);
-export const optionsList = (page: Page, id: string) => page.locator(`[id="${id}-options-list"]`);
-export async function openSelect(page: Page, id: string) {
-  await combo(page, id).click();
-  await optionsList(page, id).getByRole("option").first().waitFor();
+/* ---- "Sắp xếp" menu ---- */
+
+/** The labelled "Sắp xếp" button; its name reads "Sắp xếp: <order>". */
+export const sortButton = (page: Page) => page.getByRole("button", { name: /^Sắp xếp: / });
+const sortMenu = (page: Page) => page.getByRole("dialog", { name: "Sắp xếp", exact: true });
+export async function openSort(page: Page) {
+  await sortButton(page).click();
+  await sortMenu(page).getByRole("option").first().waitFor();
 }
-export async function choose(page: Page, id: string, option: string) {
-  if (!(await optionsList(page, id).isVisible())) await openSelect(page, id);
-  await optionsList(page, id).getByRole("option", { name: option, exact: true }).click();
-  await combo(page, id).filter({ hasText: option }).waitFor();
+export async function chooseSort(page: Page, name: string) {
+  if (!(await sortMenu(page).isVisible())) await openSort(page);
+  await sortMenu(page).getByRole("option", { name, exact: true }).click();
+  await page.getByRole("button", { name: `Sắp xếp: ${name}`, exact: true }).waitFor();
 }
+
+/* ---- "Bộ lọc" panel ---- */
+
+/** The funnel button: "Bộ lọc", or "Bộ lọc, đang áp dụng N tiêu chí" with a badge. */
+export const filterButton = (page: Page) => page.getByRole("button", { name: /^Bộ lọc(, đang áp dụng \d+ tiêu chí)?$/ });
+export const filterPanel = (page: Page) => page.locator(".dir-filter-panel");
+export async function openFilters(page: Page) {
+  await filterButton(page).click();
+  await filterPanel(page).getByRole("heading", { name: "Bộ lọc", exact: true }).waitFor();
+}
+/** Ticks a criterion (or a status) of the open panel. */
+export async function tick(page: Page, label: string) {
+  await filterPanel(page).getByRole("checkbox", { name: label, exact: true }).check();
+}
+/** The value box of a ticked criterion: a one-value list with a search box ("Chọn" until chosen). */
+export async function openPicker(page: Page, label: string) {
+  await filterPanel(page).getByRole("button", { name: label, exact: true }).click();
+  await page.getByRole("dialog", { name: label, exact: true }).getByRole("option").first().waitFor();
+}
+export async function pick(page: Page, label: string, option: string) {
+  const list = page.getByRole("dialog", { name: label, exact: true });
+  if (!(await list.isVisible())) await openPicker(page, label);
+  await list.getByRole("option", { name: option, exact: true }).click();
+  await filterPanel(page).getByRole("button", { name: label, exact: true }).filter({ hasText: option }).waitFor();
+}
+/** Several values (Loại hình bưu cục): tick each, then "Xong". */
+export async function pickMany(page: Page, label: string, options: string[]) {
+  await filterPanel(page).getByRole("button", { name: label, exact: true }).click();
+  const list = page.getByRole("dialog", { name: label, exact: true });
+  for (const option of options) await list.getByRole("checkbox", { name: option, exact: true }).check();
+  await list.getByRole("button", { name: "Xong", exact: true }).click();
+  await list.waitFor({ state: "hidden" });
+}
+/** "Áp dụng": the panel closes and the URL carries the criteria. */
+export async function applyFilters(page: Page) {
+  await filterPanel(page).getByRole("button", { name: "Áp dụng", exact: true }).click();
+  await filterPanel(page).waitFor({ state: "hidden" });
+}
+/** The funnel names how many criteria are applied. */
+export const appliedFilters = (page: Page, count: number) =>
+  page.getByRole("button", { name: `Bộ lọc, đang áp dụng ${count} tiêu chí`, exact: true });
+
 /** Parks the pointer on empty space beside the breadcrumb, so no row or button shows its hover colour in the picture. */
 export async function restPointer(page: Page) {
   await page.mouse.move(1300, 125);
@@ -430,17 +487,10 @@ export async function restPointer(page: Page) {
 /** Types a keyword and waits until the URL carries it (the page sends 0.4 s after the last key). */
 export async function search(page: Page, keyword: string) {
   await searchBox(page).fill(keyword);
-  await page.waitForURL(url => new URL(url).searchParams.get("search") === keyword.trim());
+  await page.waitForURL(url => (new URL(url).searchParams.get("search") ?? "") === keyword.trim());
 }
 export function rowOf(page: Page, name: string): Locator {
   return rows(page).filter({ has: page.getByRole("link", { name, exact: true }) });
-}
-/**
- * Scrolls the table to its last columns, as a user does to read "Trạng thái": at 1440 px the post-office table is
- * wider than the card and scrolls on its own (the "⋯" column stays pinned).
- */
-export async function scrollTableToEnd(page: Page) {
-  await page.locator('[role="region"]:has(> table)').first().evaluate(region => { region.scrollLeft = region.scrollWidth; });
 }
 export async function openRowMenu(page: Page, name: string) {
   await page.getByRole("button", { name: `Thao tác với ${name}`, exact: true }).click();

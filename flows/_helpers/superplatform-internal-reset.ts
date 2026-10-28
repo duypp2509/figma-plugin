@@ -195,6 +195,7 @@ async function mockReset(page: Page, log: (line: string) => void, mock: ResetMoc
 
     /* ---- Login page, after the new password ---- */
     if (path === "/v1/auth/passkey/options/autofill") return send({ available: false });
+    if (path === "/v1/auth/qr-login/settings") return send({ enabled: true, phone_approval: true, poll_interval_ms: 2000 });
     if (path.startsWith("/v1/me")) return refuse(401, "SESSION_MISSING", "Phiên đăng nhập không tồn tại.");
     const call = `${method} ${path}`;
     if (!seen.has(call)) { seen.add(call); log(`chưa giả lập: ${call}`); }
@@ -208,10 +209,24 @@ export const continueButton = (page: Page) => page.getByRole("button", { name: "
 export const heading = (page: Page, name: string) => page.getByRole("heading", { name, exact: true }).waitFor();
 /** The open dialog: a form in a "dialog", a notice in an "alertdialog". */
 export const dialog = (page: Page) => page.getByRole("dialog").or(page.getByRole("alertdialog")).last();
-export async function openReset(page: Page) {
-  await page.goto(RESET_URL);
+/** The sign-in page, where "Quên mật khẩu?" starts every flow of this group. */
+export async function openSignIn(page: Page) {
+  await page.goto("/");
+  await heading(page, "Đăng nhập");
+  await forgotLink(page).waitFor();
+}
+export const forgotLink = (page: Page) => page.getByRole("link", { name: "Quên mật khẩu?", exact: true });
+/** "Quên mật khẩu?" on the sign-in page, up to the empty first step. */
+export async function clickForgot(page: Page) {
+  await forgotLink(page).click();
+  await page.waitForURL(url => url.pathname === RESET_URL);
   await heading(page, "Quên mật khẩu");
   await page.locator("#citizen-id").waitFor();
+}
+/** From the sign-in page through "Quên mật khẩu?", without pictures. */
+export async function openReset(page: Page) {
+  await openSignIn(page);
+  await clickForgot(page);
 }
 export async function fillIdentity(page: Page, citizenId = CITIZEN_ID) {
   await page.locator("#identifier").fill(IDENTIFIER);

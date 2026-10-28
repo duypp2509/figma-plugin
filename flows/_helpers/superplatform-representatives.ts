@@ -47,6 +47,11 @@ export async function rowAction(page: Page, name: string, label: "Xem chi tiết
   await item.waitFor();
   return item;
 }
+/** Opens the "⋯" menu of a row (the picture between the list and a row's dialog) and waits for its items. */
+export async function openRowMenu(page: Page, name: string) {
+  await row(page, name).getByRole("button", { name: `Thao tác với ${name}`, exact: true }).click();
+  await row(page, name).getByRole("menuitem", { name: /^Xem chi tiết$/ }).waitFor();
+}
 export const reminder = (page: Page, text: string) => section(page).getByRole("status").filter({ hasText: text });
 export const APPOINT = "Bổ nhiệm người đại diện";
 export const EDIT = "Sửa thông tin người đại diện";

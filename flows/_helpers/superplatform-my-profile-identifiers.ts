@@ -1,5 +1,5 @@
 import type { Page, Route } from "playwright";
-import { openProfile, type ProfileMock } from "./superplatform-my-profile";
+import type { ProfileMock } from "./superplatform-my-profile";
 import { waitEnabled } from "./wait";
 
 /*
@@ -247,9 +247,8 @@ export const stepUpDialog = (page: Page) => page.getByRole("dialog", { name: "X�
 export const stepUpInput = (page: Page) => page.locator("#step-up-code");
 export const codeInput = (page: Page) => page.locator("#identifier-change-code");
 
-/** Opens the profile and the dialog of "Đổi …" or "Thêm …", waiting for its empty form. */
+/** On the open profile, clicks "Đổi …" or "Thêm …" and waits for the dialog's empty form. */
 export async function openChange(page: Page, type: Type, action: "change" | "add" = "change") {
-  await openProfile(page);
   await page.getByRole("button", { name: TITLES[type][action], exact: true }).click();
   await changeDialog(page, type, action).waitFor();
   await valueInput(page).waitFor();

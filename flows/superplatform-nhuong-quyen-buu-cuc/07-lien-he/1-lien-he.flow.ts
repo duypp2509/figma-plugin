@@ -1,16 +1,23 @@
+import type { Page } from "playwright";
 import {
-  contactDialog, contactFlow, editButton, expect, field, filterKind, historyRows, openContactEdit, openHistory, openSection,
-  pickDay, save,
+  applyDay, contactDialog, contactFlow, editButton, expect, field, filterKind, historyRows, openContactEdit, openHistory,
+  openKindFilter, openSection, save, typeDay,
 } from "../../_helpers/superplatform-unit-contacts";
-import {
-  FRANCHISE_ID, MESSAGES, POST_OFFICE_ID, dismissError, openOverview, toast, waitError,
-} from "../../_helpers/superplatform-unit-profile";
+import { FRANCHISE_ID, MESSAGES, POST_OFFICE_ID, closeToasts, sideLink, toast, waitOverview } from "../../_helpers/superplatform-unit-profile";
 
 const HISTORY = "Lịch sử liên hệ";
+const saveButton = (page: Page) => contactDialog(page).getByRole("button", { name: "Lưu", exact: true });
+
+/** "Liên hệ" of Bưu cục Văn Quán, the screen every change starts from. */
+async function start(page: Page, shot: (stepId: string, title: string) => Promise<void>) {
+  await openSection(page, POST_OFFICE_ID, "contacts");
+  await expect(editButton(page)).toBeEnabled();
+  await shot("lien-he", "Liên hệ của bưu cục: nút Sửa");
+}
 
 export default [
   contactFlow({
-    id: "xem", name: "01. XEM LIÊN HỆ, CÒN THIẾU SỐ ĐIỆN THOẠI",
+    id: "xem", name: "XEM LIÊN HỆ, CÒN THIẾU SỐ ĐIỆN THOẠI",
     setup: units => { units[POST_OFFICE_ID]!.contacts.PHONE = null; },
     async run({ page, shot }) {
       await openSection(page, POST_OFFICE_ID, "contacts");
@@ -23,111 +30,111 @@ export default [
     },
   }),
   contactFlow({
-    id: "sua-thanh-cong", name: "02. SỬA LIÊN HỆ THÀNH CÔNG",
+    id: "sua-thanh-cong", name: "SỬA LIÊN HỆ THÀNH CÔNG",
     async run({ page, shot, mock }) {
-      await openSection(page, POST_OFFICE_ID, "contacts");
-      await editButton(page).waitFor();
-      await shot("lien-he", "Liên hệ của bưu cục");
+      await start(page, shot);
 
       await openContactEdit(page);
       await expect(field(page, "contacts.PHONE")).toHaveValue("02433551234");
-      await shot("hop-sua", "Hộp Sửa liên hệ, điền sẵn giá trị hiện tại");
+      await shot("hop-sua", "Bấm Sửa: hộp Sửa liên hệ, điền sẵn giá trị hiện tại");
 
       await field(page, "contacts.PHONE").fill("024 3355 9999");
       await field(page, "contacts.PHONE").blur();
-      await shot("da-sua", "Đổi số tổng đài");
+      await expect(saveButton(page)).toBeEnabled();
+      await shot("da-sua", "Nhập số tổng đài mới");
 
       await save(contactDialog(page));
       await toast(page, "Đã lưu liên hệ.").waitFor();
       await contactDialog(page).waitFor({ state: "hidden" });
       await page.getByText("02433559999", { exact: true }).waitFor();
-      await shot("da-luu", "Đã lưu liên hệ");
+      await shot("da-luu", "Bấm Lưu: đã lưu liên hệ");
 
-      await openOverview(page, POST_OFFICE_ID);
+      await closeToasts(page);
+      await sideLink(page, "Tổng quan");
+      await waitOverview(page);
       await page.getByText("02433559999", { exact: true }).waitFor();
-      await shot("tong-quan", "Ô Liên hệ ở Tổng quan hiện số mới");
+      await shot("tong-quan", "Bấm Tổng quan: ô Liên hệ hiện số mới");
       expect(mock.writes).toBe(1);
     },
   }),
   contactFlow({
-    id: "nhap-sai", name: "03. SỐ ĐIỆN THOẠI, EMAIL KHÔNG ĐÚNG",
+    id: "nhap-sai", name: "SỐ ĐIỆN THOẠI, EMAIL KHÔNG ĐÚNG",
     async run({ page, shot, mock }) {
-      await openSection(page, POST_OFFICE_ID, "contacts");
+      await start(page, shot);
+
       await openContactEdit(page);
+      await shot("hop-sua", "Bấm Sửa: hộp Sửa liên hệ");
+
       await field(page, "contacts.PHONE").fill("1900 636677");
       await save(contactDialog(page));
       await contactDialog(page).getByText(MESSAGES.phone, { exact: true }).waitFor();
-      await shot("so-sai", "Số tổng đài 1900: báo dưới ô Số điện thoại");
+      await shot("so-sai", "Nhập số tổng đài 1900, bấm Lưu: báo dưới ô Số điện thoại");
 
       await field(page, "contacts.PHONE").fill("");
       await save(contactDialog(page));
       await contactDialog(page).getByText(MESSAGES.phoneRequired, { exact: true }).waitFor();
-      await shot("xoa-trong-so", "Xóa trống số điện thoại");
+      await shot("xoa-trong-so", "Xóa trống số điện thoại, bấm Lưu");
 
       await field(page, "contacts.PHONE").fill("024 3355 1234");
       await field(page, "contacts.EMAIL").fill("buucucvanquan@supership");
       await save(contactDialog(page));
       await contactDialog(page).getByText(MESSAGES.email, { exact: true }).waitFor();
-      await shot("email-sai", "Email thiếu tên miền");
+      await shot("email-sai", "Email thiếu tên miền, bấm Lưu");
       expect(mock.writes).toBe(0);
     },
   }),
   contactFlow({
-    id: "khong-doi-bi-sua", name: "04. KHÔNG CÓ THAY ĐỔI, VỪA BỊ NGƯỜI KHÁC SỬA",
+    id: "khong-doi-bi-sua", name: "KHÔNG CÓ THAY ĐỔI",
     async run({ page, shot, mock }) {
-      await openSection(page, POST_OFFICE_ID, "contacts");
+      await start(page, shot);
+
       await openContactEdit(page);
+      await expect(saveButton(page)).toBeDisabled();
+      await shot("hop-sua", "Bấm Sửa, chưa sửa gì: nút Lưu bị khóa");
+
       await field(page, "contacts.PHONE").fill("024.3355.1234");
       // The web compares as the server does (a phone by its digits): "Lưu" stays greyed.
-      await expect(contactDialog(page).getByRole("button", { name: "Lưu", exact: true })).toBeDisabled();
-      await shot("khong-co-thay-doi", "Cùng số, chỉ khác dấu chấm: nút Lưu bị khóa");
-
-      await field(page, "contacts.PHONE").fill("024 3355 9999");
-      // Another manager changes the Email while this dialog is open.
-      mock.beforeWrite = () => {
-        const unit = mock.units[POST_OFFICE_ID]!;
-        unit.contacts.EMAIL = "vanquan@supership.vn"; unit.contactsVersion++;
-      };
-      await save(contactDialog(page));
-      await waitError(page, MESSAGES.contactsConflict);
-      await shot("bi-nguoi-khac-sua", "Liên hệ vừa được người khác sửa");
-
-      await dismissError(page);
-      await contactDialog(page).getByRole("button", { name: "Tải lại", exact: true }).click();
-      await contactDialog(page).waitFor({ state: "hidden" });
-      await page.getByText("vanquan@supership.vn", { exact: true }).waitFor();
-      await shot("da-tai-lai", "Tải lại: hiện Email người kia vừa lưu");
+      await expect(saveButton(page)).toBeDisabled();
+      await shot("khong-co-thay-doi", "Cùng số, chỉ khác dấu chấm: nút Lưu vẫn khóa");
       expect(mock.writes).toBe(0);
     },
   }),
   contactFlow({
-    id: "lich-su", name: "05. XEM LỊCH SỬ LIÊN HỆ",
+    id: "lich-su", name: "XEM LỊCH SỬ LIÊN HỆ",
     async run({ page, shot }) {
       await openSection(page, POST_OFFICE_ID, "contacts");
+      await shot("lien-he", "Liên hệ của bưu cục: nút Xem lịch sử");
+
       await openHistory(page, HISTORY);
       await expect(historyRows(page)).toHaveCount(4);
-      await shot("tat-ca", "Lịch sử liên hệ, mới nhất trước");
+      await shot("tat-ca", "Bấm Xem lịch sử: lịch sử liên hệ, mới nhất trước");
 
-      await filterKind(page, "Loại liên hệ", "Số điện thoại");
+      await openKindFilter(page, "Loại liên hệ", "Số điện thoại");
+      await shot("mo-loai", "Bấm ô Loại liên hệ: danh sách loại");
+
+      await filterKind(page, "Loại liên hệ", "Số điện thoại", true);
       await expect(historyRows(page)).toHaveCount(2);
-      await shot("loc-so-dien-thoai", "Lọc theo loại: Số điện thoại");
+      await shot("loc-so-dien-thoai", "Chọn Số điện thoại: chỉ còn thay đổi số điện thoại");
 
-      await pickDay(page, "Từ ngày", "2026-01-01");
+      const calendar = await typeDay(page, "Từ ngày", "2026-01-01");
+      await shot("chon-tu-ngay", "Bấm ô Từ ngày, nhập 01/01/2026");
+
+      await applyDay(calendar);
       await expect(historyRows(page)).toHaveCount(1);
-      await shot("loc-tu-ngay", "Thêm khoảng ngày: từ 01/01/2026");
+      await shot("loc-tu-ngay", "Bấm Áp dụng: thay đổi từ 01/01/2026");
     },
   }),
   contactFlow({
-    id: "tam-ngung", name: "06. ĐƠN VỊ ĐANG TẠM NGƯNG",
+    id: "tam-ngung", name: "ĐƠN VỊ ĐANG TẠM NGƯNG",
     setup: units => { Object.assign(units[POST_OFFICE_ID]!, { status: "SUSPENDED", since: "2026-10-05T02:00:00Z" }); },
     async run({ page, shot }) {
       await openSection(page, POST_OFFICE_ID, "contacts");
       await expect(editButton(page)).toBeDisabled();
       await page.getByText(MESSAGES.contactsSuspended, { exact: true }).waitFor();
-      await shot("nut-sua-tat", "Nút Sửa tắt, kèm lý do");
+      await shot("nut-sua-tat", "Bưu cục đang tạm ngưng: nút Sửa tắt, kèm lý do");
 
       await openHistory(page, HISTORY);
-      await shot("van-xem-lich-su", "Vẫn xem được lịch sử");
+      await shot("van-xem-lich-su", "Bấm Xem lịch sử: vẫn xem được lịch sử");
     },
   }),
 ];

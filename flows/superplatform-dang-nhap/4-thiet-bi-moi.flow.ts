@@ -1,7 +1,7 @@
 import type { Page } from "playwright";
 import {
   MAX_CODE_FAILURES, MESSAGES, PAGE_TITLE, WRONG_CODE, closeNotice, confirmButton, deviceApprovalFlow, heading, matchNumber,
-  notice, signInOnNewDevice, submitOnNewDevice, typeAuthenticatorCode, typeRecoveryCode, type ApprovalContext, type ApprovalStatus,
+  notice, submitOnNewDevice, typeAuthenticatorCode, typeRecoveryCode, type ApprovalContext, type ApprovalStatus,
 } from "../_helpers/superplatform-device-approval";
 import {
   PHONE, at, chooseUnit, enterUnit, fill, openLogin, pickerHeading, refusal, submit,
@@ -9,10 +9,18 @@ import {
 
 const signInHeading = (page: Page) => page.getByRole("heading", { name: "Đăng nhập", exact: true });
 
+/** The sign-in page filled on the new computer, then "Đăng nhập" through to the page the request opens. */
+async function signInOnNewComputer(page: Page, shot: ApprovalContext["shot"], untilTitle = PAGE_TITLE.waiting) {
+  await openLogin(page);
+  await fill(page, PHONE);
+  await shot("da-nhap", "Nhập số điện thoại và mật khẩu trên máy mới");
+  await submitOnNewDevice(page, untilTitle);
+}
+
 /** The waiting page with the number to pick, then the request ends on the trusted device. */
 async function endedOnTrustedDevice({ page, shot, approval }: ApprovalContext, status: ApprovalStatus, title: string,
                                     endedTitle: string) {
-  await signInOnNewDevice(page);
+  await signInOnNewComputer(page, shot);
   await matchNumber(page, approval.matchNumber).waitFor();
   await shot("cho-cho-phep", "Chờ thiết bị tin cậy cho phép");
   approval.status = status;
@@ -24,11 +32,8 @@ async function endedOnTrustedDevice({ page, shot, approval }: ApprovalContext, s
 }
 
 export default [
-  deviceApprovalFlow("cho-phep", "01. THIẾT BỊ TIN CẬY CHO PHÉP ĐĂNG NHẬP", async ({ page, shot, approval }) => {
-    await openLogin(page);
-    await fill(page, PHONE);
-    await shot("da-nhap", "Nhập số điện thoại và mật khẩu trên máy mới");
-    await submitOnNewDevice(page);
+  deviceApprovalFlow("cho-phep", "THIẾT BỊ TIN CẬY CHO PHÉP ĐĂNG NHẬP", async ({ page, shot, approval }) => {
+    await signInOnNewComputer(page, shot);
     await matchNumber(page, approval.matchNumber).waitFor();
     await shot("cho-cho-phep", "Chờ thiết bị tin cậy cho phép, số cần chọn và thời hạn");
     // The trusted device picks the right number from a session with MFA: no code asked here.
@@ -39,8 +44,8 @@ export default [
     await enterUnit(page);
     await shot("trang-chu", "Vào trang chủ của đơn vị");
   }),
-  deviceApprovalFlow("ma-xac-thuc", "02. KHÔNG CÓ THIẾT BỊ TIN CẬY, XÁC NHẬN BẰNG MÃ XÁC THỰC", async ({ page, shot }) => {
-    await signInOnNewDevice(page, PAGE_TITLE.code);
+  deviceApprovalFlow("ma-xac-thuc", "KHÔNG CÓ THIẾT BỊ TIN CẬY, XÁC NHẬN BẰNG MÃ XÁC THỰC", async ({ page, shot }) => {
+    await signInOnNewComputer(page, shot, PAGE_TITLE.code);
     await shot("nhap-ma", "Không có thiết bị tin cậy trực tuyến, nhập mã Authenticator");
     await typeAuthenticatorCode(page);
     await shot("da-nhap-ma", "Đã nhập mã Authenticator");
@@ -48,8 +53,8 @@ export default [
     await pickerHeading(page).waitFor();
     await shot("chon-don-vi", "Đã xác nhận, chọn đơn vị làm việc");
   }, { approverAvailable: false }),
-  deviceApprovalFlow("ma-du-phong", "03. XÁC NHẬN BẰNG MÃ DỰ PHÒNG", async ({ page, shot, approval }) => {
-    await signInOnNewDevice(page);
+  deviceApprovalFlow("ma-du-phong", "XÁC NHẬN BẰNG MÃ DỰ PHÒNG", async ({ page, shot, approval }) => {
+    await signInOnNewComputer(page, shot);
     await matchNumber(page, approval.matchNumber).waitFor();
     await shot("cho-cho-phep", "Chờ thiết bị tin cậy cho phép");
     await page.getByRole("button", { name: "Xác nhận bằng mã dự phòng", exact: true }).click();
@@ -63,21 +68,26 @@ export default [
     await pickerHeading(page).waitFor();
     await shot("chon-don-vi", "Đã xác nhận, chọn đơn vị làm việc");
   }),
-  deviceApprovalFlow("sai-ma", "04. NHẬP SAI MÃ XÁC THỰC", async ({ page, shot }) => {
-    await signInOnNewDevice(page);
+  deviceApprovalFlow("sai-ma", "NHẬP SAI MÃ XÁC THỰC", async ({ page, shot, approval }) => {
+    await signInOnNewComputer(page, shot);
+    await matchNumber(page, approval.matchNumber).waitFor();
+    await shot("cho-cho-phep", "Chờ thiết bị tin cậy cho phép");
     await page.getByRole("button", { name: "Xác nhận bằng ứng dụng xác thực", exact: true }).click();
     await heading(page, PAGE_TITLE.code).waitFor();
     // The pointer would leave the button now under it in its hover colour.
     await page.mouse.move(0, 0);
+    await shot("nhap-ma", "Chuyển sang nhập mã Authenticator");
     await typeAuthenticatorCode(page, WRONG_CODE);
     await shot("da-nhap-ma", "Nhập mã Authenticator");
     await confirmButton(page).click();
     await page.getByRole("alertdialog").getByText(MESSAGES.wrongCode, { exact: true }).waitFor();
     await shot("sai-ma", "Mã xác thực không đúng");
   }),
-  deviceApprovalFlow("sai-qua-so-lan", "05. NHẬP SAI MÃ QUÁ SỐ LẦN", async ({ page, shot, approval }) => {
-    await signInOnNewDevice(page, PAGE_TITLE.code);
+  deviceApprovalFlow("sai-qua-so-lan", "NHẬP SAI MÃ QUÁ SỐ LẦN", async ({ page, shot, approval }) => {
+    await signInOnNewComputer(page, shot, PAGE_TITLE.code);
+    await shot("nhap-ma", "Không có thiết bị tin cậy trực tuyến, nhập mã Authenticator");
     await typeAuthenticatorCode(page, WRONG_CODE);
+    await shot("nhap-sai-ma", "Nhập sai mã Authenticator");
     while (approval.failures < MAX_CODE_FAILURES - 1) {
       await confirmButton(page).click();
       await page.getByRole("alertdialog").getByText(MESSAGES.wrongCode, { exact: true }).waitFor();
@@ -93,18 +103,19 @@ export default [
     await signInHeading(page).waitFor();
     await shot("ve-dang-nhap", "Quay lại trang đăng nhập");
   }, { approverAvailable: false }),
-  deviceApprovalFlow("tu-choi", "06. BỊ TỪ CHỐI TRÊN THIẾT BỊ TIN CẬY", async ctx => {
+  deviceApprovalFlow("tu-choi", "BỊ TỪ CHỐI TRÊN THIẾT BỊ TIN CẬY", async ctx => {
     await endedOnTrustedDevice(ctx, "REJECTED", "Đăng nhập chưa được chấp nhận", "Bị từ chối trên thiết bị tin cậy");
   }),
-  deviceApprovalFlow("chon-sai-so", "07. CHỌN SAI SỐ TRÊN THIẾT BỊ TIN CẬY", async ctx => {
+  deviceApprovalFlow("chon-sai-so", "CHỌN SAI SỐ TRÊN THIẾT BỊ TIN CẬY", async ctx => {
     await endedOnTrustedDevice(ctx, "MISMATCHED", "Số không khớp", "Thiết bị tin cậy chọn sai số");
   }),
-  deviceApprovalFlow("het-han", "08. YÊU CẦU HẾT HẠN HOẶC ĐÃ BỊ HỦY", async ctx => {
+  deviceApprovalFlow("het-han", "YÊU CẦU HẾT HẠN HOẶC ĐÃ BỊ HỦY", async ctx => {
     await endedOnTrustedDevice(ctx, "EXPIRED", "Bạn cần đăng nhập lại", "Yêu cầu hết hạn hoặc bị hủy nơi khác");
   }, { expiresAt: at(5) }),
-  deviceApprovalFlow("huy", "09. HỦY ĐĂNG NHẬP", async ({ page, shot, approval }) => {
-    await signInOnNewDevice(page);
+  deviceApprovalFlow("huy", "HỦY ĐĂNG NHẬP", async ({ page, shot, approval }) => {
+    await signInOnNewComputer(page, shot);
     await matchNumber(page, approval.matchNumber).waitFor();
+    await shot("cho-cho-phep", "Chờ thiết bị tin cậy cho phép");
     await page.getByRole("button", { name: "Hủy đăng nhập", exact: true }).click();
     await notice(page, "Hủy yêu cầu đăng nhập?").waitFor();
     await shot("hoi-huy", "Hỏi lại trước khi hủy yêu cầu");
@@ -112,17 +123,18 @@ export default [
     await signInHeading(page).waitFor();
     await shot("ve-dang-nhap", "Đã hủy, quay lại trang đăng nhập");
   }),
-  deviceApprovalFlow("xac-minh-danh-tinh", "10. CHƯA CÓ AUTHENTICATOR, XÁC MINH DANH TÍNH", async ({ page, shot }) => {
-    await signInOnNewDevice(page, PAGE_TITLE.identity);
+  deviceApprovalFlow("xac-minh-danh-tinh", "CHƯA CÓ AUTHENTICATOR, XÁC MINH DANH TÍNH", async ({ page, shot }) => {
+    await signInOnNewComputer(page, shot, PAGE_TITLE.identity);
     await shot("xac-minh-danh-tinh", "Chưa có Authenticator, xác minh danh tính để tiếp tục");
     await page.getByRole("button", { name: "Xác minh danh tính", exact: true }).click();
     await heading(page, "Xác minh khuôn mặt").waitFor();
     await shot("xac-minh-khuon-mat", "Đồng ý xác minh khuôn mặt");
   }, { approverAvailable: false, authenticator: false, recoveryCodes: 0 }),
-  deviceApprovalFlow("qua-nhanh", "11. GỬI YÊU CẦU QUÁ NHANH", async ({ page, shot, mock }) => {
+  deviceApprovalFlow("qua-nhanh", "GỬI YÊU CẦU QUÁ NHANH", async ({ page, shot, mock }) => {
     mock.on("POST", "/v1/sessions", () => ({ status: 429, message: MESSAGES.rateLimited, data: { code: "DEVICE_LOGIN_RATE_LIMITED" } }));
     await openLogin(page);
     await fill(page, PHONE);
+    await shot("da-nhap", "Nhập số điện thoại và mật khẩu trên máy mới");
     await submit(page);
     await refusal(page, MESSAGES.rateLimited);
     await shot("qua-nhanh", "Đăng nhập liên tục trên máy mới, phải chờ một phút");

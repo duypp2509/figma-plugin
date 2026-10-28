@@ -1,6 +1,7 @@
 import type { Page, Route } from "playwright";
 import { defineFlow, type FlowContext } from "../../capture";
 import { mockPin } from "./superplatform-screen-lock";
+import { capability } from "./supership-session";
 
 /*
  * "Thông tin tài khoản" of the SuperPlatform console (/workspace/account/profile, "Hồ sơ" in the account menu), for the
@@ -23,11 +24,10 @@ export const MESSAGES = {
   nameEmpty: "Vui lòng nhập họ và tên.",
   contactIncomplete: "Nhập đủ họ tên, quan hệ và số điện thoại; hoặc xóa hết để gỡ liên hệ khẩn cấp.",
   contactPhoneInvalid: "Số điện thoại không hợp lệ. Nhập số Việt Nam 10 số.",
-  conflict: "Thông tin tài khoản đã được cập nhật ở nơi khác. Hãy tải thông tin mới trước khi chỉnh sửa tiếp.",
   cardLock: "Theo căn cước đã xác thực",
 };
 
-export type Reply = { status?: number; message?: string; data?: unknown; abort?: true } | undefined;
+export type Reply = { status?: number; message?: string; data?: unknown } | undefined;
 export interface Identifier { id: string; type: "PHONE" | "EMAIL"; value: string; verified: boolean }
 export interface Contact { name: string | null; relationship: string | null; phone_number: string | null; updated_at: string | null }
 export interface ProfileMock {
@@ -98,7 +98,6 @@ async function mockProfile(page: Page, mock: ProfileMock, overrides: { method: s
       if (typeof override.path === "string" ? override.path !== path : !override.path.test(path)) continue;
       const reply = override.reply(body);
       if (!reply) continue;
-      if (reply.abort) return route.abort("failed");
       return send(reply.data ?? null, reply.status ?? 200, reply.message ?? "");
     }
 
@@ -133,6 +132,12 @@ async function mockProfile(page: Page, mock: ProfileMock, overrides: { method: s
     if (path === "/v1/me/employee-invitations/count") return send({ count: 0 });
     if (path === "/v1/public/apps/current") return send({ id: "app-superplatform", code: "SUPERPLATFORM", name: "SuperPlatform",
       app_group: "INTERNAL", status: "ACTIVE" });
+    // The home page, where the profile update reminder is met first.
+    if (path === "/v1/me/capabilities") return send({
+      context: { context_id: "pin-context", context_type: "SUPERPLATFORM", application_name: "SUPERPLATFORM",
+        membership_id: "pin-member", organization_id: "pin-org" },
+      assurance: { level: 2, mfa_verified: true, mfa_verified_at: AT }, capabilities: [capability("identity.view", "pin-org")],
+      revision: "capture", generated_at: AT, expires_at: "2026-10-13T02:00:00.000Z" });
     if (path === "/v1/me/access-context/token") return send({ token: "capture-order-token", expires_at: "2026-10-13T02:00:00.000Z" });
     return route.fallback();
   });

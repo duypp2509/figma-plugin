@@ -2,7 +2,7 @@ import { HA_DONG, LONG_BIEN, historyToggle, openRepresentatives, reminder, repre
 
 export default [
   representativeFlow({
-    id: "xem-danh-sach", name: "01. XEM DANH SÁCH NGƯỜI ĐẠI DIỆN",
+    id: "xem-danh-sach", name: "XEM DANH SÁCH NGƯỜI ĐẠI DIỆN",
     async run({ page, shot }) {
       await openRepresentatives(page, HA_DONG);
       await reminder(page, "Ủy quyền của Lê Hoàng Phúc sắp hết hạn ngày 31/10/2026.").waitFor();
@@ -16,7 +16,7 @@ export default [
     },
   }),
   representativeFlow({
-    id: "chua-khai-bao-phap-ly", name: "02. ĐƠN VỊ CHƯA KHAI BÁO THÔNG TIN PHÁP LÝ",
+    id: "chua-khai-bao-phap-ly", name: "ĐƠN VỊ CHƯA KHAI BÁO THÔNG TIN PHÁP LÝ",
     async run({ page, shot }) {
       await openRepresentatives(page, LONG_BIEN);
       await reminder(page, "Chưa khai báo thông tin pháp lý, chưa xác định được người đại diện theo pháp luật.").waitFor();

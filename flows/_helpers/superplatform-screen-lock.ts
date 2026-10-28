@@ -85,7 +85,17 @@ export async function mockPin(page: Page, log: (line: string) => void, enabled: 
     if (path === "/v1/me/device-trust-requests") return send({ current_device_id: "pin-device", current_device_trusted: true, has_trusted_device: true, requests: [] });
     if (path === "/v1/me/login-protection") return send({ enabled: true });
     if (path === "/v1/me/sessions/current/activity") return send({});
+    // The Order token is fetched in the background; answering it remounts the page mid-shot, so it stays refused quietly.
+    if (path === "/v1/me/access-context/token") return send({}, 404, "CAPTURE_UNMOCKED");
     if (path === "/v1/auth/passkey/options/autofill") return send({ available: false });
+    if (path === "/v1/auth/qr-login/settings") return send({ enabled: true, phone_approval: true, poll_interval_ms: 2000 });
+    // Shell calls of every workspace page.
+    // The (?) guide is fetched only when opened; its presence check may 404 without changing the page.
+    if (path.startsWith("/api/help/")) return send({}, 404, "HELP_NOT_FOUND");
+    if (path === "/v1/public/apps/current") return send({ id: "app-superplatform", code: "SUPERPLATFORM", name: "SuperPlatform", app_group: "INTERNAL", status: "ACTIVE" });
+    if (path === "/v1/me/profile-update-request") return send(null);
+    if (path === "/v1/me/reminders") return send({ items: [], banners: [], notices: [] });
+    if (path === "/v1/me/employee-invitations/count") return send({ pending: 0 });
     const call = `${method} ${path}`;
     if (!seen.has(call)) { seen.add(call); log(`chưa giả lập: ${call}`); }
     return send({}, 404, "CAPTURE_UNMOCKED", call);
@@ -97,8 +107,14 @@ export async function openSettings(page: Page) {
   catch (error) { if (!String(error).includes("ERR_NETWORK_CHANGED")) throw error; await page.goto(SECURITY_URL); }
   // The tab's panel title and the settings card both read "Khóa màn hình": wait for the card, drawn last.
   await page.getByRole("heading", { name: "Khóa màn hình", exact: true }).last().waitFor();
+  await page.locator("#screen-lock").getByText(/^(Đang bật|Chưa bật)$/).waitFor();
 }
 export async function fillPin(page: Page, value = PIN, confirm = value) { await page.getByLabel("Mã PIN mới", { exact: true }).fill(value); await page.getByLabel("Nhập lại PIN", { exact: true }).fill(confirm); }
 export async function mfa(page: Page) { const input = page.getByRole("textbox", { name: "Mã xác thực" }); await input.waitFor(); await input.pressSequentially("515060"); await page.getByRole("button", { name: "Xác thực MFA và tiếp tục" }).click(); }
 export async function lockNow(page: Page) { await page.getByRole("button", { name: "Khóa ngay", exact: true }).click(); await page.getByRole("heading", { name: "Màn hình đã khóa" }).waitFor(); }
 export async function unlock(page: Page, value = PIN) { await page.getByLabel("Mã PIN", { exact: true }).fill(value); await page.getByRole("button", { name: "Mở khóa", exact: true }).click(); }
+/** The account menu of the top bar, opened from the name. */
+export async function openAccountMenu(page: Page) {
+  await page.locator("summary").filter({ hasText: "Nguyễn Minh Anh" }).click();
+  await page.getByRole("button", { name: "Khóa màn hình", exact: true }).waitFor();
+}

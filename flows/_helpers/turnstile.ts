@@ -71,7 +71,12 @@ export async function mockTurnstile(page: Page, mode: "visible" | "hidden" = "vi
     // Make the real script's render() use the testing sitekey. The script must find no `turnstile` on the
     // page when it starts (it refuses to load twice), so the wrapping happens once it has published its
     // API: just before the app's "loaded" callback runs, and again right after the script body.
-    const response = await route.fetch();
+    // Cloudflare is slow now and then: one more try, and a failed load fails this flow only (an error thrown from a
+    // route handler would end the whole run).
+    const response = await route.fetch({ timeout: 20_000 }).catch(() => route.fetch({ timeout: 20_000 })).catch(() => null);
+    if (!response) return route.abort("timedout").catch(() => undefined);
+    const body = await response.text().catch(() => null);
+    if (body === null) return route.abort("failed").catch(() => undefined);
     const onload = new URL(route.request().url()).searchParams.get("onload");
     const wrap = `
       window.__captureWrapTurnstile = () => {
@@ -87,6 +92,6 @@ export async function mockTurnstile(page: Page, mode: "visible" | "hidden" = "vi
         if (typeof loaded === "function") window[name] = function () { window.__captureWrapTurnstile(); return loaded.apply(this, arguments); };
       })();
     `;
-    await route.fulfill({ response, body: `${wrap}\n${await response.text()}\n;window.__captureWrapTurnstile();` });
+    await route.fulfill({ response, body: `${wrap}\n${body}\n;window.__captureWrapTurnstile();` }).catch(() => undefined);
   });
 }

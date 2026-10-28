@@ -25,7 +25,7 @@ async function closeResult(page: Page) {
 }
 
 export default [
-  flow("xem", "01. XEM THÔNG TIN TÀI KHOẢN", async ({ page, shot }) => {
+  flow("xem", "XEM THÔNG TIN TÀI KHOẢN", async ({ page, shot }) => {
     await openProfile(page);
     await shot("thong-tin-tai-khoan", "Thông tin tài khoản", FULL);
     await hint(page, "Giải thích: Mã nhân viên", "Do công ty quản lý; muốn đổi, liên hệ bộ phận nhân sự.");
@@ -33,8 +33,9 @@ export default [
     await hint(page, "Giải thích: Liên hệ khẩn cấp", "Quản lý của bạn xem được thông tin này.");
     await shot("quan-ly-xem-duoc", "Quản lý xem được liên hệ khẩn cấp");
   }, { contact: MOTHER }),
-  flow("sua-thanh-cong", "02. SỬA THÔNG TIN CÁ NHÂN", async ({ page, shot }) => {
+  flow("sua-thanh-cong", "SỬA THÔNG TIN CÁ NHÂN", async ({ page, shot }) => {
     await openProfile(page);
+    await shot("thong-tin-tai-khoan", "Thông tin tài khoản: chưa sửa gì, nút Cập nhật thông tin mờ", FULL);
     await fullNameInput(page).fill("Nguyễn Thị Minh Anh");
     await saveButton(page).and(page.locator(":enabled")).waitFor();
     await shot("da-sua", "Sửa họ tên: nút Cập nhật thông tin sáng lên", FULL);
@@ -42,28 +43,35 @@ export default [
     await result(page, MESSAGES.saved);
     await shot("thanh-cong", "Cập nhật thông tin thành công");
   }),
-  flow("theo-can-cuoc", "03. HỌ TÊN, NGÀY SINH, GIỚI TÍNH THEO CĂN CƯỚC ĐÃ XÁC THỰC", async ({ page, shot }) => {
+  flow("theo-can-cuoc", "HỌ TÊN, NGÀY SINH, GIỚI TÍNH THEO CĂN CƯỚC ĐÃ XÁC THỰC", async ({ page, shot }) => {
     await openProfile(page);
     await page.getByText("Đã xác thực", { exact: true }).first().waitFor();
     await hint(page, MESSAGES.cardLock, MESSAGES.cardLock);
     await shot("khoa-theo-can-cuoc", "Căn cước đã xác thực: họ tên, ngày sinh, giới tính bị khóa");
   }, { documentStatus: "VERIFIED", fullName: "NGUYỄN MINH ANH", contact: MOTHER }),
-  flow("nhap-lieu", "04. LỖI NHẬP LIỆU", async ({ page, shot }) => {
+  flow("nhap-lieu", "LỖI NHẬP LIỆU", async ({ page, shot }) => {
     await openProfile(page);
+    await shot("thong-tin-tai-khoan", "Thông tin tài khoản", FULL);
     await page.getByRole("button", { name: "Xóa họ tên", exact: true }).click();
     await page.getByText(MESSAGES.nameEmpty, { exact: true }).waitFor();
     await shot("ho-ten-trong", "Xóa họ tên: báo phải nhập họ và tên", FULL);
     await fullNameInput(page).fill("Nguyễn Minh Anh");
     await contactInput(page, "name").fill("Trần Thị Lan");
+    await saveButton(page).and(page.locator(":enabled")).waitFor();
+    await page.mouse.move(0, 0);
+    await shot("nhap-thieu-lien-he", "Nhập lại họ tên, liên hệ khẩn cấp chỉ nhập họ tên", FULL);
     await save(page);
     await page.getByText(MESSAGES.contactIncomplete, { exact: true }).waitFor();
     await shot("lien-he-thieu", "Liên hệ khẩn cấp nhập thiếu", FULL);
   }),
-  flow("lien-he-khan-cap", "05. THÊM, SỬA, GỠ LIÊN HỆ KHẨN CẤP", async ({ page, shot, mock }) => {
+  flow("lien-he-khan-cap", "THÊM, SỬA, GỠ LIÊN HỆ KHẨN CẤP", async ({ page, shot, mock }) => {
     await openProfile(page);
+    await shot("thong-tin-tai-khoan", "Thông tin tài khoản: chưa có liên hệ khẩn cấp", FULL);
     await contactInput(page, "name").fill("Trần Thị Lan");
     await contactInput(page, "relationship").fill("Mẹ");
     await contactInput(page, "phoneNumber").fill("0912 345 67");
+    await page.mouse.move(0, 0);
+    await shot("nhap-so-thieu", "Nhập liên hệ khẩn cấp, số điện thoại thiếu một chữ số", FULL);
     await save(page);
     await result(page, MESSAGES.contactPhoneInvalid);
     await shot("so-khong-hop-le", "Số điện thoại người liên hệ không hợp lệ");

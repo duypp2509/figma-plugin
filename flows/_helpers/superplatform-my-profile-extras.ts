@@ -7,10 +7,8 @@ import { waitEnabled } from "./wait";
  * avatar upload answered like the server, and the signed-in person's open request (MineDto) kept as the server does.
  */
 
-/** Sentences of the server (UserService, ProfileImageValidator, S3ProfileImageStorage, ProfileUpdateRequestService). */
+/** Sentences of the server (UserService). */
 export const EXTRA_MESSAGES = {
-  versionConflict: "Hồ sơ Person đã bị thay đổi bởi một yêu cầu khác. Hãy tải lại dữ liệu và thử lại.",
-  storageUnavailable: "Không thể truy cập kho ảnh. Vui lòng thử lại.",
   avatarSaved: "Đã cập nhật ảnh đại diện.",
 };
 
@@ -139,12 +137,3 @@ export const request = {
     });
   },
 };
-
-/** Another tab of the same person saved the profile: the page hears it (BroadcastChannel) and reloads it. */
-export async function announceElsewhere(page: Page) {
-  await page.evaluate(() => {
-    const channel = new BroadcastChannel("supership-profile");
-    channel.postMessage({ identityId: "pin-identity" });
-    channel.close();
-  });
-}

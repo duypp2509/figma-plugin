@@ -44,7 +44,6 @@ export const MESSAGES = {
   employmentNotStarted: "Bạn bắt đầu làm việc tại Bưu cục Tân Bình từ ngày 01/11/2026.",
   notGranted: "Tài khoản chưa được cấp quyền vào SuperPlatform. Liên hệ người quản lý đơn vị.",
   maintenance: "SuperPlatform đang bảo trì.",
-  network: "Không thể kết nối tới máy chủ.",
 };
 /** LOGIN_LOCKOUT_MAX_ATTEMPTS: the fifth wrong password locks the internal Apps for 15 minutes. */
 export const MAX_ATTEMPTS = 5;
@@ -86,7 +85,14 @@ export interface LoginMock {
   passkey: PasskeyAnswer;
   /** The identifier the last password sign-in was made with. */
   identifier: string | null;
+  /**
+   * Set once the server has ended the session behind the browser's back (gone unused, signed out elsewhere, network
+   * not allowed…): every later call about "me" is answered with it, until the next sign-in.
+   */
+  ended?: Ended;
 }
+/** How the server answers for a session it ended; {@code then} answers every call after the first one. */
+export interface Ended { status: number; message: string; data: Record<string, unknown>; then?: Ended }
 export interface LoginContext extends FlowContext { mock: LoginMock }
 
 export function passwordFlow(id: string, name: string, run: (ctx: LoginContext) => Promise<void>, setup: LoginSetup = {}) {
@@ -217,7 +223,14 @@ async function mockLogin(page: Page, log: (line: string) => void, mock: LoginMoc
       }
       if (mock.account !== "ACTIVE") return refuse(401, MESSAGES.invalid);
       if (mock.afterPassword) return send(mock.afterPassword.data, mock.afterPassword.status, mock.afterPassword.message);
-      mock.failures = 0; mock.identifier = body.identifier; signedIn = true;
+      mock.failures = 0; mock.identifier = body.identifier; signedIn = true; mock.ended = undefined;
+      return send(session());
+    }
+    // QR sign-in is off unless the flow turns it on (qr-login.internal-enabled defaults to false).
+    if (path === "/v1/auth/qr-login/settings") return send({ enabled: false, phone_approval: false, poll_interval_ms: 2000 });
+    // An approved QR code: the browser inherits the phone's MFA proof (QrApprovalService).
+    if (/^\/v1\/auth\/qr-login\/[^/]+\/complete$/.test(path) && method === "POST") {
+      signedIn = true; mfaDone = true; mock.ended = undefined;
       return send(session());
     }
     if (path === "/v1/auth/passkey/options/autofill") return refuse(404, "Không tìm thấy.");
@@ -233,7 +246,17 @@ async function mockLogin(page: Page, log: (line: string) => void, mock: LoginMoc
     }
 
     /* ---- After the sign-in: MFA, the unit picker, the workspace ---- */
+    if (mock.ended && path.startsWith("/v1/me")) {
+      const ended = mock.ended;
+      if (ended.then) mock.ended = ended.then;
+      return send(ended.data, ended.status, ended.message);
+    }
     if (!signedIn && path.startsWith("/v1/me")) return missing();
+    // "Đăng xuất" (header menu), "Đăng nhập tài khoản khác", "Quay về trang đăng nhập": the session ends here.
+    if (path === "/v1/me/sessions/current" && method === "DELETE") {
+      signedIn = false; viaPasskey = false; mfaDone = false; active = null; trustOffer = true;
+      return send({ revoked_session_count: 1, revoked_context_count: 0 }, 200, "Đã đăng xuất.");
+    }
     if (path === "/v1/me/session") return send(session());
     if (path === "/v1/me/auth-state") return send(authState());
     if (path === "/v1/me/memberships") return send(UNITS.map(membership));
@@ -247,6 +270,9 @@ async function mockLogin(page: Page, log: (line: string) => void, mock: LoginMoc
       active = UNITS.find(unit => unit.membership_id === request.postDataJSON().membership_id) ?? UNITS[0]!;
       return send({ active_context: context() });
     }
+    // The token the console hands to Order for the unit in use (order-access-token.ts).
+    if (path === "/v1/me/access-context/token" && method === "POST") return send({ active_context: { ...context(), context_version: 1 },
+      access_token: "capture-order-token", token_type: "Bearer", expires_in: 900, access_token_expires_at: at(900) });
     if (path === "/v1/me/devices/current/trust") { trustOffer = false; return send({}); }
     if (path === "/v1/me/employee-invitations" || path.startsWith("/v1/me/employee-invitations")) return send([]);
     if (path === "/v1/me/capabilities") return send({
@@ -267,6 +293,8 @@ async function mockLogin(page: Page, log: (line: string) => void, mock: LoginMoc
     if (path === "/v1/me/device-trust-requests") return send({ current_device_id: "device-capture", current_device_trusted: !viaPasskey || !trustOffer,
       has_trusted_device: true, requests: [] });
 
+    // The guides of the (?) buttons (help-service): none in these pictures.
+    if (path.startsWith("/api/help/")) return refuse(404, "Không tìm thấy hướng dẫn.", "HELP_NOT_FOUND");
     const call = `${method} ${path}`;
     if (!seen.has(call)) { seen.add(call); log(`chưa giả lập: ${call}`); }
     return refuse(404, call, "CAPTURE_UNMOCKED");
@@ -283,6 +311,10 @@ export const passkeyButton = (page: Page) => page.getByRole("button", { name: "�
 /** The empty form, once the captcha has handed out its token (every button waits for it). */
 export async function openLogin(page: Page) {
   await page.goto("/");
+  await loginReady(page);
+}
+/** The login page the app went back to on its own (signed out, session ended), once the captcha handed out its token. */
+export async function loginReady(page: Page) {
   await page.getByRole("heading", { name: "Đăng nhập", exact: true }).waitFor();
   await page.locator('input[name="cf-turnstile-response"]').and(page.locator(":not([value=''])")).waitFor({ state: "attached" });
   await loginButton(page).and(page.locator(":enabled")).waitFor();
@@ -310,7 +342,15 @@ export async function submit(page: Page) {
 /** The refusal dialog of the sign-in page, closed with its button. */
 export async function refusal(page: Page, message: string) {
   await page.getByRole("alertdialog").getByText(message, { exact: true }).waitFor();
+  await settled(page);
   await scrollToTop(page);
+}
+/** Waits for the open dialog to finish its entrance (it slides and fades in), so the picture has it in place. */
+export async function settled(page: Page) {
+  // Endless ones (a spinner) are left out: they never finish.
+  await page.evaluate(() => Promise.all(document.getAnimations()
+    .filter(animation => animation.effect?.getComputedTiming().endTime !== Infinity)
+    .map(animation => animation.finished.catch(() => undefined))));
 }
 /** Opening a dialog low on the page scrolls what is behind it; the dialog is fixed, so the page goes back to the top. */
 export async function scrollToTop(page: Page) {

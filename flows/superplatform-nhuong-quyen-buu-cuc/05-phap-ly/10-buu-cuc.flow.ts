@@ -1,8 +1,8 @@
-import { HA_DONG, YEN_NGHIA, legalFlow, openLegal, openOverview } from "../../_helpers/superplatform-legal-profile";
+import { HA_DONG, YEN_NGHIA, legalFlow, legalLoaded, openOverview } from "../../_helpers/superplatform-legal-profile";
 
 export default [
   legalFlow({
-    id: "buu-cuc", name: "10. BƯU CỤC DÙNG PHÁP LÝ CỦA NHƯỢNG QUYỀN",
+    id: "buu-cuc", name: "BƯU CỤC DÙNG PHÁP LÝ CỦA NHƯỢNG QUYỀN",
     async run({ page, shot }) {
       await openOverview(page, YEN_NGHIA);
       await page.getByRole("heading", { name: "Pháp lý của nhượng quyền", exact: true }).waitFor();
@@ -11,7 +11,7 @@ export default [
 
       await page.getByRole("link", { name: "Xem chi tiết Pháp lý của nhượng quyền" }).click();
       await page.waitForURL(`**/${HA_DONG.id}?section=legal-entities`);
-      await openLegal(page, HA_DONG);
+      await legalLoaded(page);
       await shot("phap-ly-nhuong-quyen", "Xem chi tiết: mở thông tin pháp lý của nhượng quyền");
     },
   }),

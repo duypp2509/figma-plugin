@@ -4,7 +4,7 @@ import {
 } from "../_helpers/superplatform-identity-document";
 
 export default [
-  identityFlow("thanh-cong", "01. XÁC THỰC CĂN CƯỚC THÀNH CÔNG", async ({ page, shot }) => {
+  identityFlow("thanh-cong", "XÁC THỰC CĂN CƯỚC THÀNH CÔNG", async ({ page, shot }) => {
     await openIdentity(page); await startButton(page).waitFor();
     await shot("chua-xac-thuc", "Chưa xác thực căn cước");
 
@@ -36,8 +36,10 @@ export default [
     await page.getByRole("button", { name: "Xác thực lại" }).waitFor();
     await shot("da-xac-thuc", "Trang giấy tờ định danh sau khi xác thực", { mode: "fullPage" });
   }),
-  identityFlow("tai-anh", "02. CHỌN ẢNH TỪ MÁY VÀ KHÔNG MỞ ĐƯỢC CAMERA", async ({ page, shot }) => {
-    await openIdentity(page);
+  identityFlow("tai-anh", "CHỌN ẢNH TỪ MÁY VÀ KHÔNG MỞ ĐƯỢC CAMERA", async ({ page, shot }) => {
+    await openIdentity(page); await startButton(page).waitFor();
+    await shot("chua-xac-thuc", "Chưa xác thực căn cước");
+
     await page.evaluate(() => { (window as unknown as Record<string, unknown>).__ffcCamera = "denied"; });
     await startButton(page).click();
     await page.getByText("Mặt trước căn cước", { exact: true }).waitFor();

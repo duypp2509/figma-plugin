@@ -44,6 +44,8 @@ export const MESSAGES = {
   /** use-mfa-error: a running lock, in place of the server's sentence. */
   locked: (seconds = LOCK_SECONDS) => `Bạn đã thử quá nhiều lần. Có thể thử lại sau ${seconds} giây.`,
   otpRequired: "Vui lòng xác minh mã OTP gửi tới email hoặc số điện thoại trước khi đăng ký.",
+  /** MfaEnrollmentService: too many wrong OTPs while setting up ends the sign-in. */
+  enrollmentOtpExceeded: "Bạn đã nhập sai mã quá số lần nên lần đăng nhập bị hủy. Bạn đăng nhập lại để thử lần nữa.",
 };
 
 export interface MfaState {
@@ -59,12 +61,18 @@ export interface MfaState {
 }
 export interface MfaContext extends LoginContext { mfa: MfaState }
 
+/** Adds the MFA stand-in to a sign-in flow of another sub-Section (e.g. the notices of the login page). */
+export async function withMfa(ctx: LoginContext, enrolled: boolean): Promise<MfaState> {
+  const mfa: MfaState = { enrolled, recoveryCodes: [...RECOVERY_CODES], failures: 0, otpVerified: false, signedOut: false };
+  await mockMfa(ctx, mfa);
+  return mfa;
+}
+
 /** A flow of this group; the id gets "superplatform-dang-nhap-mfa-". */
 export function mfaFlow(id: string, name: string, run: (ctx: MfaContext) => Promise<void>,
                         { enrolled = true, ...setup }: LoginSetup & { enrolled?: boolean } = {}) {
   return loginFlow(`mfa-${id}`, GROUP, name, async ctx => {
-    const mfa: MfaState = { enrolled, recoveryCodes: [...RECOVERY_CODES], failures: 0, otpVerified: false, signedOut: false };
-    await mockMfa(ctx, mfa);
+    const mfa = await withMfa(ctx, enrolled);
     await run({ ...ctx, mfa });
   }, setup);
 }
@@ -124,6 +132,11 @@ async function mockMfa({ page, mock }: LoginContext, mfa: MfaState) {
   });
   mock.on("POST", "/v1/me/mfa/enrollment/otp/verify", body => {
     const failure = otp.verify(body?.otp_code);
+    // MfaEnrollmentService: the last wrong code while still signing in ends that sign-in.
+    if (failure?.code === "OTP_ATTEMPTS_EXCEEDED") {
+      mfa.signedOut = true;
+      return refusal(401, MESSAGES.enrollmentOtpExceeded, "SESSION_REVOKED", { reason: "MFA_ENROLLMENT_OTP_EXCEEDED" });
+    }
     if (failure) return refusal(failure.status, failure.message, failure.code, failure.extra);
     mfa.otpVerified = true;
     return { message: "Xác minh OTP thành công.", data: { authorized_until: at(600) } };
@@ -181,13 +194,14 @@ async function call(page: Page, method: string, path: string, body: unknown) {
 
 /* ---- Steps ---- */
 
-/** Signs in with the phone number and lands on the MFA asked before the unit picker. */
-export async function signInToMfa(page: Page, shot?: LoginContext["shot"]) {
+/** The sign-in page filled with the phone number, then "Đăng nhập" through to the MFA asked before the unit picker. */
+export async function signInToMfa(page: Page, shot: LoginContext["shot"]) {
   await openLogin(page);
   await fill(page, PHONE);
+  await shot("man-dang-nhap", "Nhập số điện thoại và mật khẩu");
   await submit(page);
   await page.getByRole("heading", { name: "Xác thực hai lớp", exact: true }).waitFor();
-  await shot?.("mfa", "Nhập mã Authenticator trước khi chọn đơn vị");
+  await shot("mfa", "Nhập mã Authenticator trước khi chọn đơn vị");
 }
 export const codeInput = (page: Page) => page.getByRole("textbox", { name: "Mã xác thực" });
 export const recoveryInput = (page: Page) => page.getByLabel("Mã dự phòng", { exact: true });

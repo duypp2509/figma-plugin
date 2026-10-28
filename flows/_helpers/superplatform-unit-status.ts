@@ -1,4 +1,4 @@
-import type { Page, Request } from "playwright";
+import type { Locator, Page, Request } from "playwright";
 import { expect } from "playwright/test";
 import { defineFlow, type FlowContext } from "../../capture";
 import { mockPin } from "./superplatform-screen-lock";
@@ -12,6 +12,14 @@ import { franchiseGroup } from "./superplatform-franchise-sections";
  * the step-up dialog first, as the server does. The page clock is frozen by mockPin at 12/10/2026 09:00.
  */
 
+/** The reasons of "Đổi loại hình bưu cục" (V1459__post_office_type_change_reasons.sql). */
+const TYPE_REASONS = [
+  { code: "NANG_CAP_LEN_GIAO_NHAN", name: "Nâng cấp lên bưu cục giao nhận", note_required: false },
+  { code: "SAP_XEP_LAI_MANG_LUOI_KHU_VUC", name: "Sắp xếp lại mạng lưới khu vực", note_required: false },
+  { code: "THIEU_NHAN_SU_LAY_GIAO_HANG", name: "Thiếu nhân sự lấy, giao hàng", note_required: false },
+  { code: "OTHER", name: "Khác", note_required: true },
+];
+
 export const STATUS_GROUP = franchiseGroup("trang-thai");
 export const TYPE_GROUP = franchiseGroup("loai-hinh");
 export const LIST_URL = "/workspace/organizations";
@@ -19,8 +27,6 @@ export const STEP_UP_CODE = "515060";
 /** The frozen "now" of mockPin. */
 const NOW = "2026-10-12T02:00:00.000Z";
 const LATER = "2026-10-12T02:05:00.000Z";
-/** When "someone else" changed the post office type, a few minutes before the page was opened. */
-const ELSEWHERE = "2026-10-12T01:52:00.000Z";
 
 export const MESSAGES = {
   wrongCode: "Mã xác thực không đúng hoặc đã được sử dụng.",
@@ -116,6 +122,12 @@ function units(): Unit[] {
   ];
 }
 
+/** The ward each post office serves, as [code, name] of its province and ward. */
+const SERVED_WARDS: Record<string, { province: [string, string]; ward: [string, string] }> = {
+  "org-yn": { province: ["01", "Thành phố Hà Nội"], ward: ["01009", "Phường Yên Nghĩa"] },
+  "org-dn2": { province: ["01", "Thành phố Hà Nội"], ward: ["01003", "Phường Dương Nội"] },
+  "org-pk": { province: ["52", "Tỉnh Gia Lai"], ward: ["52002", "Phường Pleiku"] },
+};
 export const UNITS = {
   hadong: { id: "org-hd", name: "NHƯỢNG QUYỀN HÀ ĐÔNG" },
   yenNghia: { id: "org-yn", name: "BƯU CỤC YÊN NGHĨA" },
@@ -129,8 +141,6 @@ export interface UnitMock {
   start: Record<string, { status: Status; since: string }>;
   /** Accepted changes (after the code). */
   writes: number;
-  /** Someone else changes the post office type to `code` before the next save. */
-  changeElsewhere(id: string, code: string): void;
   unit(id: string): Unit;
 }
 export interface UnitContext extends FlowContext { mock: UnitMock }
@@ -177,7 +187,6 @@ async function mockUnits(page: Page, log: (line: string) => void, role: Role, st
   let challenges = 0;
   const mock: UnitMock = {
     start, writes: 0,
-    changeElsewhere(unitId, code) { const unit = find(unitId)!; unit.model = { code, since: ELSEWHERE, version: unit.model!.version + 1 }; },
     unit: unitId => find(unitId)!,
   };
 
@@ -334,6 +343,16 @@ async function mockUnits(page: Page, log: (line: string) => void, role: Role, st
 
     /* ---- Shell ---- */
     if (path === "/v1/me/employee-invitations/count") return send({ pending: 0 });
+    if (path === "/v1/public/apps/current") return send({ id: "app-superplatform", code: "SUPERPLATFORM", name: "SuperPlatform", app_group: "INTERNAL", status: "ACTIVE" });
+    if (path === "/v1/me/profile-update-request") return send(null);
+    if (path === "/v1/me/reminders") return send({ items: [], banners: [], notices: [] });
+    // The (?) after a title: the guide of the function, served by the help service.
+    const help = url.pathname.match(/^\/api\/help\/v1\/help\/functions\/([^/]+)$/);
+    if (help) return send({ code: help[1], title: "Tổ chức", group_title: "Tổ chức", article_markdown: "" });
+    if (path === "/v1/me/access-context/token") return send({ access_token: "capture-context-token", token_type: "Bearer", expires_in: 900,
+      access_token_expires_at: "2026-12-31T00:00:00Z", active_context: { context_id: "pin-context", active_membership_id: "pin-member",
+        org_code: "SUPERTEK", org_name: "SuperTek", application_code: "SUPERPLATFORM", context_version: 1 } });
+    if (path === "/v1/scope/verification-requests") return send({ items: [], page: 0, size: 20, total: 0, types: [] });
     if (path === "/v1/shops/list-options") return send({ internal_allowed: true, shops_allowed: false, types: [], statuses: [],
       franchises: [], post_offices: [], operation_models: [] });
 
@@ -396,6 +415,9 @@ async function mockUnits(page: Page, log: (line: string) => void, role: Role, st
         contact_types: [{ code: "PHONE", name: "Số điện thoại", value_kind: "PHONE", required: true }, { code: "EMAIL", name: "Email", value_kind: "EMAIL", required: false }] });
     }
 
+    /* ---- "Lý do" of "Đổi loại hình bưu cục" (V1459, 28/10/2026) ---- */
+    if (path === "/v1/reasons/POST_OFFICE_TYPE_CHANGE") return send({ function_code: "POST_OFFICE_TYPE_CHANGE", reasons: TYPE_REASONS });
+
     /* ---- Administration of one unit ---- */
     const adminPath = path.match(/^\/v1\/admin\/organizations\/([^/]+)(\/.*)$/);
     if (adminPath) {
@@ -405,6 +427,17 @@ async function mockUnits(page: Page, log: (line: string) => void, role: Role, st
       if (rest === "/profile" && method === "GET") return send(profileOf(unit));
       if (rest === "/status" && method === "GET") return send(statusOf(unit));
       if (rest === "/operation-model" && method === "GET") return send(operationModelOf(unit));
+      // The overview asks for the unit's addresses only for their reminders: none here.
+      if (rest === "/addresses" && method === "GET") return send({ items: [], version: 1, actions: {} });
+      // "Địa điểm phục vụ" of a post office: the ward it is named after.
+      if (rest === "/service-wards" && method === "GET") {
+        const served = SERVED_WARDS[unit.id];
+        const off = { available: false, enabled: false, disabled_reason: null };
+        return send({ organization_id: unit.id, total: served ? 1 : 0, reminder: served ? null : "Chưa có địa điểm phục vụ",
+          wards: served ? [{ province_code: served.province[0], province_name: served.province[1], district_code: null, district_name: null,
+            ward_code: served.ward[0], ward_name: served.ward[1], since: unit.start, also_served_by: [] }] : [],
+          actions: { edit: off, history: { available: true, enabled: true, disabled_reason: null } } });
+      }
       if (rest === "/status/suspension" || rest === "/status/reactivation" || rest === "/status/closure") {
         const body = request.postDataJSON() ?? {};
         if (!admin) return refuse(403, "PERMISSION_DENIED", "Bạn không có quyền đổi trạng thái đơn vị.");
@@ -451,6 +484,10 @@ async function mockUnits(page: Page, log: (line: string) => void, role: Role, st
         const next = MODELS.find(model => model.code === code);
         if (!next) return refuse(400, "ORGANIZATION_INPUT_INVALID", "Loại hình bưu cục không hợp lệ.", { operation_model: "Loại hình bưu cục không hợp lệ." });
         if (unit.model!.code === code) return refuse(409, "NO_CHANGE", `${unit.name} đang là ${next.name}.`);
+        // The reason resolved from the catalog as ReasonChoices does ("Chọn lý do." when none).
+        const reason = TYPE_REASONS.find(item => item.code === body.reason_code);
+        if (!reason) return refuse(400, "REASON_INVALID", "Chọn lý do.");
+        if (reason.note_required && !String(body.reason_note ?? "").trim()) return refuse(400, "REASON_INVALID", "Nhập lý do khác.");
         if (body.version !== unit.model!.version) return refuse(409, "VERSION_CONFLICT", MESSAGES.modelConflict);
         const asked = stepUp("POST_OFFICE_TYPE_CHANGE", `Đổi loại hình ${unit.name} từ ${modelName(unit.model!.code)} sang ${next.name}`);
         if (asked) return asked;
@@ -511,6 +548,11 @@ export async function openDialog(page: Page, label: string, title: string) {
   await button(page, label).click();
   await dialog(page, title).waitFor();
 }
+/** Points at a greyed button until its reason shows in the dark tooltip (DisabledReason wraps it in a hoverable span). */
+export async function showReason(page: Page, target: Locator, reason: string) {
+  await target.locator("xpath=..").hover();
+  await page.getByRole("tooltip").getByText(reason, { exact: true }).waitFor();
+}
 /** The "⋯" of a directory row, open. */
 export async function openRowMenu(page: Page, name: string) {
   await page.getByRole("button", { name: `Thao tác với ${name}` }).click();
@@ -520,21 +562,23 @@ export async function openRowMenu(page: Page, name: string) {
 /* ---- Controls ---- */
 
 export const field = (page: Page, id: string) => page.locator(`[id="${id}"]`);
-/** Picks a date (yyyy-mm-dd) in the shared calendar: year, month, then the day of that month. */
-export async function pickDate(page: Page, id: string, iso: string) {
-  const [year, month, day] = iso.split("-").map(Number) as [number, number, number];
-  const container = field(page, id).locator("xpath=..");
-  await field(page, id).click();
-  const calendar = container.getByRole("dialog", { name: "Lịch chọn ngày" });
-  await calendar.waitFor();
-  await calendar.getByRole("button", { name: "Chọn năm" }).click();
-  await calendar.getByRole("group", { name: "Danh sách năm" }).getByRole("button", { name: String(year), exact: true }).click();
-  await calendar.getByRole("button", { name: "Chọn tháng" }).click();
-  await calendar.getByRole("group", { name: "Danh sách tháng" }).getByRole("button", { name: `Tháng ${month}`, exact: true }).click();
-  // Days of the neighbouring months share the grid: small numbers repeat at the end, large ones at the start.
-  const days = calendar.getByRole("button", { name: String(day), exact: true });
-  await (day < 15 ? days.first() : days.last()).click();
-  await calendar.waitFor({ state: "hidden" });
+/**
+ * Picks a date (yyyy-mm-dd) in the shared calendar (a popover named "Chọn ngày"): month and year in its two selects,
+ * the day on the grid, then "Áp dụng". `beforeApply` runs with the day picked and the calendar still open.
+ */
+export async function pickDate(page: Page, id: string, iso: string, beforeApply?: () => Promise<void>) {
+  const [year, month, day] = iso.split("-");
+  const trigger = field(page, id);
+  await trigger.click();
+  const calendar = page.locator(`[id="${await trigger.getAttribute("aria-controls")}"]`);
+  await calendar.getByRole("heading", { name: "Chọn ngày", exact: true }).waitFor();
+  await calendar.getByRole("combobox", { name: "Năm hiển thị" }).selectOption(String(Number(year)));
+  await calendar.getByRole("combobox", { name: "Tháng hiển thị" }).selectOption(String(Number(month)));
+  await calendar.getByRole("gridcell", { name: `${day}/${month}/${year}`, exact: true }).click();
+  await beforeApply?.();
+  await calendar.getByRole("button", { name: "Áp dụng", exact: true }).click();
+  await calendar.getByRole("heading", { name: "Chọn ngày", exact: true }).waitFor({ state: "hidden" });
+  await expect(trigger).toContainText(`${day}/${month}/${year}`);
 }
 
 /* ---- Step-up ---- */

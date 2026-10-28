@@ -1,27 +1,32 @@
-import { GIA_LAM, dialog, enterCode, legalButton, legalFlow, openLegal, scrollTop, waitCode } from "../../_helpers/superplatform-legal-profile";
+import { ME_LINH, STEP_UP_CODE, codeDialog, dialog, enterCode, field, legalFlow, openLegal, scrollTop, waitCode } from "../../_helpers/superplatform-legal-profile";
 
+/*
+ * The personal identification number is no longer masked nor revealed behind a code (23/10/2026): it shows in full.
+ * The sensitive view left behind a code, and logged, is the registration certificate ("Giấy đăng ký" → "Xem"), so
+ * this flow keeps its frames for that: a household business, whose number is its owner's identification number.
+ */
 export default [
   legalFlow({
-    id: "xem-so-dinh-danh", name: "03. XEM SỐ ĐỊNH DANH CÁ NHÂN",
+    id: "xem-so-dinh-danh", name: "XEM SỐ ĐỊNH DANH VÀ GIẤY ĐĂNG KÝ",
     async run({ page, shot }) {
-      await openLegal(page, GIA_LAM);
-      await page.getByText("********2345", { exact: true }).waitFor();
+      await openLegal(page, ME_LINH);
+      await page.locator(".legal-page").getByText("001085004321", { exact: true }).waitFor();
       await scrollTop(page);
-      await shot("so-bi-che", "Cá nhân: số định danh luôn che, chỉ hiện 4 số cuối", { mode: "fullPage" });
+      await shot("so-bi-che", "Hộ kinh doanh: số định danh cá nhân của chủ hộ hiện đầy đủ", { mode: "fullPage" });
 
-      await legalButton(page, "Xem số định danh").click();
-      const confirm = dialog(page, "Xem số định danh cá nhân?");
-      await confirm.waitFor();
-      await shot("xac-nhan", "Hỏi trước khi xem: mỗi lần xem được ghi nhật ký");
-      await confirm.getByRole("button", { name: "Xem", exact: true }).click();
+      await page.locator(".legal-info-card", { hasText: "Giấy đăng ký" }).getByRole("button", { name: "Xem", exact: true }).click();
       await waitCode(page);
+      await codeDialog(page).getByText("Lần xem này được ghi nhật ký.", { exact: false }).waitFor();
+      await shot("xac-nhan", "Xem giấy đăng ký: hỏi mã xác thực, lần xem được ghi nhật ký");
+      await field(page, "step-up-code").fill(STEP_UP_CODE);
       await shot("ma-xac-thuc", "Nhập mã xác thực");
 
       await enterCode(page);
-      await page.getByText("Che lại sau 60 giây", { exact: true }).waitFor();
-      await page.locator("dd", { hasText: "001190012345" }).waitFor();
-      await scrollTop(page);
-      await shot("hien-so", "Hiện số đầy đủ trong 60 giây rồi tự che lại", { mode: "fullPage" });
+      const viewer = dialog(page, "Giấy đăng ký");
+      const picture = viewer.getByRole("img", { name: "Giấy đăng ký" });
+      await picture.waitFor();
+      await picture.evaluate(node => (node as HTMLImageElement).decode());
+      await shot("hien-so", "Giấy đăng ký mở trong trình xem");
     },
   }),
 ];

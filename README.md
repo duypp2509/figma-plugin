@@ -309,7 +309,7 @@ Các luồng bên dưới dùng app `supership` hoặc `superplatform` ở viewp
 | Quên mật khẩu nội bộ — SuperPlatform | `--flow "superplatform-quen-mat-khau*"` | 11 | 37 | SUPERPLATFORM → QUÊN MẬT KHẨU NỘI BỘ |
 | Đăng nhập — SuperPlatform (8 nhóm con, xem bên dưới) | `--flow "superplatform-dang-nhap*"` | 59 | 188 | SUPERPLATFORM → ĐĂNG NHẬP → 8 Section con |
 | Hồ sơ của tôi — SuperPlatform (4 nhóm con, xem bên dưới) | `--flow "superplatform-ho-so-cua-toi*"` | 30 | 104 | SUPERPLATFORM → HỒ SƠ CỦA TÔI → 4 Section con |
-| Nhượng quyền và bưu cục — SuperPlatform (10 nhóm con, xem bên dưới) | xem [mục bên dưới](#nhượng-quyền-và-bưu-cục--superplatform-flowssuperplatform-nhuong-quyen-buu-cuc) | 73 | | SUPERPLATFORM — NHƯỢNG QUYỀN VÀ BƯU CỤC → 01 … 10 |
+| Nhượng quyền và bưu cục — SuperPlatform (10 nhóm con, xem bên dưới) | xem [mục bên dưới](#nhượng-quyền-và-bưu-cục--superplatform-flowssuperplatform-nhuong-quyen-buu-cuc) | 80 | | SUPERPLATFORM — NHƯỢNG QUYỀN VÀ BƯU CỤC → 01 … 10 |
 
 Mọi nhóm trừ `dang-ky-shop` dùng backend giả lập: không tạo tài khoản hay cửa hàng, không gửi OTP, chạy lại bao nhiêu lần cũng được. Câu báo lỗi trong các nhánh thất bại được chép từ mã nguồn backend. Các luồng có ngày giờ hay bộ đếm ngược đều đứng đồng hồ của trang, nên ảnh giống nhau giữa các lần chạy.
 
@@ -372,17 +372,17 @@ Mọi luồng về nhượng quyền và bưu cục nằm trong một Section ch
 | Section con | Thư mục | Tiền tố id | Số luồng |
 | --- | --- | --- | --- |
 | 01. DANH SÁCH TỔ CHỨC | `01-danh-sach` | `superplatform-danh-sach-` | 8 |
-| 02. THÊM ĐỐI TÁC NHƯỢNG QUYỀN | `02-them-nhuong-quyen` | `superplatform-nhuong-quyen-` | 7 |
-| 03. MỞ BƯU CỤC | `03-mo-buu-cuc` | `superplatform-buu-cuc-` | 5 |
-| 04. HỒ SƠ TỔ CHỨC | `04-ho-so` | `superplatform-ho-so-` | 7 |
+| 02. THÊM ĐỐI TÁC NHƯỢNG QUYỀN | `02-them-nhuong-quyen` | `superplatform-nhuong-quyen-` | 9 |
+| 03. MỞ BƯU CỤC | `03-mo-buu-cuc` | `superplatform-buu-cuc-` | 6 |
+| 04. HỒ SƠ TỔ CHỨC | `04-ho-so` | `superplatform-ho-so-` (trừ `superplatform-ho-so-cua-toi-`) | 9 |
 | 05. THÔNG TIN PHÁP LÝ | `05-phap-ly` | `superplatform-phap-ly-` | 13 |
 | 06. NGƯỜI ĐẠI DIỆN | `06-nguoi-dai-dien` | `superplatform-nguoi-dai-dien-` | 10 |
 | 07. LIÊN HỆ CỦA TỔ CHỨC | `07-lien-he` | `superplatform-lien-he-` | 6 |
 | 08. ĐỊA CHỈ CỦA TỔ CHỨC | `08-dia-chi` | `superplatform-dia-chi-` | 5 |
-| 09. ĐỔI LOẠI HÌNH BƯU CỤC | `09-loai-hinh` | `superplatform-loai-hinh-` | 4 |
+| 09. ĐỔI LOẠI HÌNH BƯU CỤC | `09-loai-hinh` | `superplatform-loai-hinh-` | 3 |
 | 10. TẠM NGƯNG, KÍCH HOẠT LẠI, NGỪNG HOẠT ĐỘNG | `10-trang-thai` | `superplatform-trang-thai-` | 8 |
 
-Chạy cả 73 luồng theo đúng thứ tự (bỏ `--no-figma` để gửi sang Figma):
+Chạy cả 80 luồng theo đúng thứ tự (bỏ `--no-figma` để gửi sang Figma). Lưu ý: `superplatform-ho-so-*` cũng chọn 30 luồng Hồ sơ của tôi (`superplatform-ho-so-cua-toi-*`); muốn chỉ Hồ sơ tổ chức thì liệt kê id trong bảng 04 bên dưới:
 
 ```powershell
 .\capture --no-figma --flow "superplatform-danh-sach-*" --flow "superplatform-nhuong-quyen-*" --flow "superplatform-buu-cuc-*" --flow "superplatform-ho-so-*" --flow "superplatform-phap-ly-*" --flow "superplatform-nguoi-dai-dien-*" --flow "superplatform-lien-he-*" --flow "superplatform-dia-chi-*" --flow "superplatform-loai-hinh-*" --flow "superplatform-trang-thai-*"
@@ -392,32 +392,53 @@ Luồng đã bỏ: `superplatform-buu-cuc-mat-ket-noi`, `superplatform-danh-sach
 
 #### 02, 03. Thêm đối tác nhượng quyền, mở bưu cục
 
-Hai trang riêng, viewport desktop 1440 × 900, ảnh 2×, đồng hồ trang dừng ở 12/10/2026:
+Hai trang riêng, viewport desktop 1440 × 900, ảnh 2×, đồng hồ trang dừng ở 12/10/2026. Cập nhật theo web ngày 28/10/2026: lịch chọn ngày nổi, tải giấy đăng ký trước rồi tự điền mục 02, ô Logo để trống và máy chủ gán logo SuperShip mặc định (ảnh ở `flows/_helpers/assets/supership-default-logo.png`), văn phòng giao dịch ở mục 05 "Địa chỉ khác", gửi yêu cầu chờ Quản trị hệ thống duyệt.
 
-- **Thêm đối tác nhượng quyền:** Danh sách tổ chức `/workspace/organizations` (thẻ Nhượng quyền) → nút **Thêm đối tác nhượng quyền** → `/workspace/organizations/new/franchise`, năm mục 01–05 (thông tin chung, pháp lý theo hình thức, người đại diện theo pháp luật, liên hệ, văn phòng giao dịch) → hộp kiểm tra lại → mã xác thực → trang nhượng quyền mới. API `POST /v1/franchises`.
+- **Thêm đối tác nhượng quyền:** Danh sách tổ chức `/workspace/organizations` (thẻ Nhượng quyền) → nút **Thêm đối tác nhượng quyền** → `/workspace/organizations/new/franchise`, năm mục 01–05 → hộp kiểm tra lại → mã xác thực → trang Tổng quan tổ chức mới. API `POST /v1/franchises`.
 - **Mở bưu cục:** trang nhượng quyền → thẻ **Bưu cục** → nút **Mở bưu cục** → `/workspace/organizations/{nhượng quyền}/post-offices/new`, bốn mục 1–4 và khung "Bưu cục mới" → hộp kiểm tra lại → mã xác thực → trang bưu cục mới. API `POST /v1/franchises/{id}/post-offices`.
 
 Phiên, quyền, danh mục (`creation-options`, `post-office-creation-options`), tỉnh/xã, danh sách, hộp mã xác thực và kết quả đều giả lập; không tạo đơn vị thật. Danh mục và câu báo chép từ `CreationOptionsService`, `LegalProfileRules`, `RepresentativeEntryRules`, `CompanyEmailDomainRules`, `OperationalCreationSupport`, `MfaUnitOfWork` và `creation-form.ts` của web. Mặc định chỉ Quản trị hệ thống có `organization.franchise.create`, `organization.post_office.create`; Quản lý nhượng quyền không mở được bưu cục (luồng `quan-ly-khong-co-quyen`).
 
 | id (tiền tố `superplatform-nhuong-quyen-`) | Nội dung | Số màn |
 | --- | --- | --- |
-| `thanh-cong` | Danh sách; form trống; đã nhập đủ năm mục (doanh nghiệp, logo, tệp giấy đăng ký, hai người đại diện, văn phòng giao dịch); kiểm tra lại; mã xác thực; trang nhượng quyền mới | 6 |
-| `ca-nhan` | Chọn Cá nhân (số định danh 12 số, không người đại diện); đã nhập; đã thêm | 3 |
-| `ho-kinh-doanh` | Người đại diện là chủ hộ, căn cứ điền sẵn; đã thêm | 2 |
-| `nhap-lieu` | Bỏ trống; tên miền công cộng, mã số 13 số, số điện thoại, Email sai; đổi tỉnh xóa xã; hỏi khi đổi hình thức pháp lý | 4 |
-| `may-chu-tu-choi` | Tên miền Email công ty đã dùng; phường, xã không thuộc tỉnh | 2 |
-| `ma-xac-thuc` | Mã sai; hủy xác thực giữ dữ liệu | 2 |
-| `roi-trang` | Hỏi trước khi rời trang; ở lại | 2 |
+| `thanh-cong` | Danh sách; form trống; cắt logo; tải giấy đăng ký, tự điền; đã nhập đủ; kiểm tra lại; mã xác thực; hồ sơ mới | 8 |
+| `ca-nhan` | Danh sách; form trống; chọn Cá nhân; đã nhập; kiểm tra lại; mã xác thực; hồ sơ mới | 7 |
+| `ho-kinh-doanh` | Danh sách; form trống; giấy hộ kinh doanh: người đại diện là chủ hộ; kiểm tra lại; mã xác thực; hồ sơ mới | 6 |
+| `nhap-lieu` | Danh sách; form trống; bỏ trống; sai định dạng; đổi tỉnh xóa xã; hỏi khi đổi hình thức | 6 |
+| `may-chu-tu-choi` | Mã số đã dùng, phường xã sai tỉnh: danh sách; form trống; đã nhập; kiểm tra lại; hai câu từ chối | 6 |
+| `ma-xac-thuc` | Danh sách; form trống; đã nhập; kiểm tra lại; nhập mã; mã sai; đóng hộp giữ dữ liệu | 7 |
+| `roi-trang` | Danh sách; form trống; đã nhập tên; hỏi trước khi rời trang; ở lại | 5 |
+| `gui-duyet` | Danh sách; form trống; đã nhập; kiểm tra lại; mã xác thực; đã gửi yêu cầu; mở lại form thấy đang chờ duyệt | 7 |
+| `giay-dang-ky` | Danh sách; form trống; tệp Word bị từ chối; ảnh chụp không đọc được | 4 |
 
 | id (tiền tố `superplatform-buu-cuc-`) | Nội dung | Số màn |
 | --- | --- | --- |
-| `quan-tri-thanh-cong` | Thẻ Bưu cục; form trống; chọn loại hình; đã nhập; kiểm tra lại; mã xác thực; trang bưu cục mới | 7 |
-| `quan-ly-khong-co-quyen` | Quản lý nhượng quyền: không có nút; mở thẳng đường dẫn bị chặn | 2 |
-| `nhap-lieu` | Bỏ trống, thiếu loại hình | 1 |
-| `may-chu-tu-choi` | Nhượng quyền vừa tạm ngưng; phường, xã không thuộc tỉnh | 2 |
-| `nhuong-quyen-tam-ngung` | Nút Mở bưu cục bị khóa kèm lý do; mở thẳng đường dẫn | 2 |
+| `quan-tri-thanh-cong` | Thẻ Bưu cục; form trống; chọn loại hình; đã nhập; kiểm tra lại; mã xác thực; trang bưu cục mới (logo mặc định) | 7 |
+| `quan-ly-khong-co-quyen` | Quản lý nhượng quyền: thẻ Bưu cục không có nút Mở bưu cục | 1 |
+| `nhap-lieu` | Thẻ Bưu cục; form trống; bỏ trống, thiếu loại hình | 3 |
+| `may-chu-tu-choi` | Phường xã không thuộc tỉnh: thẻ Bưu cục; form trống; đã nhập; kiểm tra lại; câu từ chối | 5 |
+| `nhuong-quyen-tam-ngung` | Thẻ Bưu cục; nút Mở bưu cục bị khóa, lý do khi trỏ chuột | 2 |
+| `gui-duyet` | Thẻ Bưu cục; form trống; đã nhập; kiểm tra lại; mã xác thực; đã gửi yêu cầu; mở lại form thấy đang chờ duyệt | 7 |
 
-Luồng cũ đã bỏ (Section trên Figma cần xóa tay): `superplatform-buu-cuc-quan-ly-thanh-cong`. Các bước cũ không còn (`menu-tao`, `tim-nguoi-dai-dien`, `chon-nhuong-quyen`, `ma-so-thue-da-dung`, `nguoi-dai-dien-khong-dung-duoc`) sẽ hiện ở cuối Section với tiền tố `⚠ không còn trong luồng`.
+Luồng cũ đã bỏ (Section trên Figma cần xóa tay): `superplatform-buu-cuc-quan-ly-thanh-cong`; từ 28/10 bỏ các luồng lỗi hệ thống và "người khác vừa sửa": `superplatform-ho-so-doi-logo-bi-sua`, `superplatform-ho-so-may-chu-tu-choi`, `superplatform-loai-hinh-nguoi-khac-vua-doi`. Các bước cũ không còn (`menu-tao`, `tim-nguoi-dai-dien`, `chon-nhuong-quyen`, `ma-so-thue-da-dung`, `nguoi-dai-dien-khong-dung-duoc`; từ 28/10 thêm `ten-mien-da-dung` của `superplatform-nhuong-quyen-may-chu-tu-choi`) sẽ hiện ở cuối Section với tiền tố `⚠ không còn trong luồng`.
+
+#### 04. Hồ sơ tổ chức
+
+Trang Tổng quan tổ chức của nhượng quyền và bưu cục: xem, sửa tên và ngày bắt đầu hoạt động, đổi logo. Cập nhật theo web ngày 28/10/2026 (thông tin giấy đăng ký, quản lý/Trưởng bưu cục, bưu cục trực thuộc, logo mặc định, lịch chọn ngày). Câu báo chép từ `AdminProfileService`, `UnitStatusWording`, `notify-request-error.ts`, `CalendarPicker`. Web không có nút xóa logo; ảnh logo luôn được cắt thành PNG trước khi gửi nên không có lỗi định dạng hay dung lượng từ máy chủ.
+
+| id (tiền tố `superplatform-ho-so-`) | Nội dung | Số màn |
+| --- | --- | --- |
+| `tong-quan-nhuong-quyen` | Tổng quan nhượng quyền; cả trang: pháp lý, người đại diện, quản lý, bưu cục trực thuộc, liên hệ, địa chỉ | 2 |
+| `tong-quan-buu-cuc` | Tổng quan bưu cục; cả trang: Trưởng bưu cục, loại hình, liên hệ, địa chỉ, địa điểm phục vụ | 2 |
+| `sua-ten-ngay` | Tổng quan; hộp sửa; nhập tên; chọn ngày trên lịch; đã sửa; đã lưu | 6 |
+| `doi-logo` | Logo SuperShip mặc định; cắt ảnh; đã đổi | 3 |
+| `khong-doi-bi-sua` | Tổng quan; mở hộp sửa chưa đổi gì: nút Lưu thay đổi bị khóa | 2 |
+| `chi-xem` | Không có nút sửa, đổi logo, đổi loại hình, đổi trạng thái | 1 |
+| `tam-ngung` | Tổng quan; nút Sửa hồ sơ và đổi logo bị tắt, lý do khi trỏ chuột | 2 |
+| `nhap-lieu` | Tổng quan; hộp sửa; xóa trống tên thì nút Lưu bị khóa; ngày không có thật | 4 |
+| `huy-cat-anh` | Tổng quan; hộp cắt ảnh; đóng hộp, giữ logo cũ | 3 |
+
+Bước đã bỏ: `chua-co-logo` của `superplatform-ho-so-doi-logo` (plugin tự xóa khi bật "Xóa bước không còn trong luồng").
 
 ### Quên mật khẩu nội bộ — SuperPlatform (`flows/superplatform-quen-mat-khau/`)
 

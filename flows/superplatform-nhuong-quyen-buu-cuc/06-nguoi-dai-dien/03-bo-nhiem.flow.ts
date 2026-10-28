@@ -11,16 +11,16 @@ async function confirmAppoint(page: import("playwright").Page) {
 
 export default [
   representativeFlow({
-    id: "bo-nhiem-theo-phap-luat", name: "03. BỔ NHIỆM THEO PHÁP LUẬT",
+    id: "bo-nhiem-theo-phap-luat", name: "BỔ NHIỆM THEO PHÁP LUẬT",
     async run({ page, shot, mock }) {
       await openRepresentatives(page, DONG_ANH);
       await reminder(page, "Chưa có người đại diện theo pháp luật, cần cập nhật.").waitFor();
-      await shot("thieu-nguoi-theo-phap-luat", "Nhắc: chưa có người đại diện theo pháp luật");
+      await shot("thieu-nguoi-theo-phap-luat", "Danh sách người đại diện: nhắc chưa có người theo pháp luật");
 
       await appointButton(page).click();
       const box = dialog(page, APPOINT);
       await field(page, "rep-full_name").waitFor();
-      await shot("hop-bo-nhiem", "Hộp bổ nhiệm người đại diện");
+      await shot("hop-bo-nhiem", "Bấm Bổ nhiệm người đại diện: hộp bổ nhiệm");
 
       // Giám đốc cũ thôi việc 30/09/2026; Hội đồng quản trị bổ nhiệm giám đốc mới từ 01/10/2026.
       await pick(page, "rep-representative_type", "Theo pháp luật");
@@ -36,7 +36,7 @@ export default [
       await shot("da-nhap", "Đã nhập: loại, họ tên, chức danh, tài khoản liên kết, ngày bắt đầu, căn cứ");
 
       await confirmAppoint(page);
-      await shot("xac-nhan", "Kiểm tra lại trước khi bổ nhiệm");
+      await shot("xac-nhan", "Bấm Bổ nhiệm: kiểm tra lại trước khi bổ nhiệm");
       await dialog(page, `${APPOINT}?`).getByRole("button", { name: /^(Bổ nhiệm|Xác nhận)$/ }).click();
       await waitCode(page);
       await shot("ma-xac-thuc", "Nhập mã xác thực");
@@ -51,13 +51,20 @@ export default [
     },
   }),
   representativeFlow({
-    id: "bo-nhiem-theo-uy-quyen", name: "04. BỔ NHIỆM THEO ỦY QUYỀN",
+    id: "bo-nhiem-theo-uy-quyen", name: "BỔ NHIỆM THEO ỦY QUYỀN",
     async run({ page, shot, mock }) {
       await openRepresentatives(page, HA_DONG);
+      await row(page, "Lê Hoàng Phúc").waitFor();
+      await scrollTop(page);
+      await shot("danh-sach", "Danh sách người đại diện", { mode: "fullPage" });
+
       await appointButton(page).click();
+      await field(page, "rep-full_name").waitFor();
+      await shot("hop-bo-nhiem", "Bấm Bổ nhiệm người đại diện: hộp bổ nhiệm");
+
       await pick(page, "rep-representative_type", "Theo ủy quyền");
       await field(page, "rep-scope_of_authority").waitFor();
-      await shot("chon-theo-uy-quyen", "Theo ủy quyền: thêm phạm vi ủy quyền và ngày kết thúc");
+      await shot("chon-theo-uy-quyen", "Chọn Theo ủy quyền: thêm phạm vi ủy quyền và ngày kết thúc");
 
       await field(page, "rep-full_name").fill("Vũ Thị Lan");
       await field(page, "rep-position_title").fill("Kế toán trưởng");
@@ -72,9 +79,11 @@ export default [
       await shot("da-nhap", "Đã nhập phạm vi ủy quyền, thời hạn đến 31/12/2026 và giấy ủy quyền");
 
       await confirmAppoint(page);
-      await shot("xac-nhan", "Kiểm tra lại trước khi bổ nhiệm");
+      await shot("xac-nhan", "Bấm Bổ nhiệm: kiểm tra lại trước khi bổ nhiệm");
       await dialog(page, `${APPOINT}?`).getByRole("button", { name: /^(Bổ nhiệm|Xác nhận)$/ }).click();
       await waitCode(page);
+      await shot("ma-xac-thuc", "Nhập mã xác thực");
+
       await enterCode(page);
       await toast(page, MESSAGES.appointed).waitFor();
       await row(page, "Vũ Thị Lan").waitFor();

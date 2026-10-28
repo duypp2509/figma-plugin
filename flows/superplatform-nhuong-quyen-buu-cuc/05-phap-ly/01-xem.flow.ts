@@ -1,8 +1,8 @@
-import { HA_DONG, legalFlow, openLegal, openOverview, scrollTop } from "../../_helpers/superplatform-legal-profile";
+import { HA_DONG, legalFlow, legalLoaded, openOverview, scrollTop } from "../../_helpers/superplatform-legal-profile";
 
 export default [
   legalFlow({
-    id: "xem", name: "01. XEM THÔNG TIN PHÁP LÝ",
+    id: "xem", name: "XEM THÔNG TIN PHÁP LÝ",
     async run({ page, shot }) {
       await openOverview(page, HA_DONG);
       await page.getByText("CÔNG TY TNHH VẬN CHUYỂN HÀ ĐÔNG").first().waitFor();
@@ -10,10 +10,11 @@ export default [
 
       await page.getByRole("link", { name: "Xem chi tiết Thông tin pháp lý" }).click();
       await page.waitForURL("**section=legal-entities");
-      await openLegal(page, HA_DONG);
-      await page.getByText("Chưa xác minh. Đang chờ Quản trị hệ thống đối chiếu từ ngày 06/09/2026.").waitFor();
+      await legalLoaded(page);
+      // The amended subject waits for its check: "Chờ xác minh" by the title and in "Xác minh".
+      await page.locator(".legal-page aside").getByRole("button", { name: "Xác minh", exact: true }).waitFor();
       await scrollTop(page);
-      await shot("phap-ly", "Thông tin pháp lý: doanh nghiệp, chưa xác minh", { mode: "fullPage" });
+      await shot("phap-ly", "Thông tin pháp lý: doanh nghiệp, chờ xác minh", { mode: "fullPage" });
     },
   }),
 ];

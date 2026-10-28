@@ -44,8 +44,8 @@ export async function save(dialog: Locator) {
   await dialog.getByRole("button", { name: "Lưu", exact: true }).click();
 }
 
-/** The custom listbox of a field: opens it, waits for the option and picks it. */
-export async function choose(page: Page, id: string, option: string) {
+/** The custom listbox of a field: opens it and waits until `option` shows in it. */
+export async function openOptions(page: Page, id: string, option: string) {
   const trigger = page.locator(`[data-field="${id}"] [role="combobox"]`);
   await expect(trigger).toBeEnabled();
   const target = page.locator(`[id="${id}-options-list"]`).getByRole("option", { name: option, exact: true });
@@ -53,8 +53,13 @@ export async function choose(page: Page, id: string, option: string) {
     if (!(await target.isVisible())) await trigger.click();
     try { await target.waitFor({ timeout: 2000 }); break; } catch { /* open it again */ }
   }
+  return target;
+}
+/** The custom listbox of a field: opens it, waits for the option and picks it. */
+export async function choose(page: Page, id: string, option: string) {
+  const target = await openOptions(page, id, option);
   await target.click();
-  await expect(trigger).toContainText(option);
+  await expect(page.locator(`[data-field="${id}"] [role="combobox"]`)).toContainText(option);
 }
 export async function fillAddress(page: Page, type: string, province: string, ward: string, line?: string) {
   await choose(page, `addresses.${type}.province_code`, province);
@@ -71,16 +76,35 @@ export async function openHistory(page: Page, title: string) {
   await page.getByRole("heading", { name: title, exact: true }).waitFor();
   await historyRows(page).first().waitFor();
 }
-/** "Loại liên hệ" / "Loại địa chỉ" of the history page. */
-export async function filterKind(page: Page, label: string, option: string) {
+/** Opens "Loại liên hệ" / "Loại địa chỉ" of the history page and waits for `option` in its list. */
+export async function openKindFilter(page: Page, label: string, option: string) {
+  await page.getByRole("combobox", { name: label, exact: true }).click();
+  await page.getByRole("option", { name: option, exact: true }).waitFor();
+}
+/** "Loại liên hệ" / "Loại địa chỉ" of the history page; `open` when its list is already open. */
+export async function filterKind(page: Page, label: string, option: string, open = false) {
   const trigger = page.getByRole("combobox", { name: label, exact: true });
-  await trigger.click();
+  if (!open) await trigger.click();
   await page.getByRole("option", { name: option, exact: true }).click();
   await expect(trigger).toContainText(option);
 }
 /** "Từ ngày" / "Đến ngày" of the history page. */
 export async function pickDay(page: Page, label: string, iso: string) {
   await pickCalendarDay(page.getByRole("button", { name: label, exact: true }), iso);
+}
+/** Opens the calendar of "Từ ngày" / "Đến ngày" and types the day (yyyy-mm-dd), leaving "Áp dụng" to `applyDay`. */
+export async function typeDay(page: Page, label: string, iso: string) {
+  const trigger = page.getByRole("button", { name: label, exact: true });
+  await trigger.click();
+  const panel = page.locator(`[id="${await trigger.getAttribute("aria-controls")}"]`);
+  const [year, month, day] = iso.split("-");
+  await panel.getByRole("textbox", { name: "Ngày", exact: true }).fill(`${day}/${month}/${year}`);
+  await expect(panel.getByRole("button", { name: "Áp dụng", exact: true })).toBeEnabled();
+  return panel;
+}
+export async function applyDay(panel: Locator) {
+  await panel.getByRole("button", { name: "Áp dụng", exact: true }).click();
+  await panel.waitFor({ state: "hidden" });
 }
 
 export { expect };

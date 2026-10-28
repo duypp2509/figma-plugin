@@ -6,7 +6,7 @@ import {
 import { DEV_OTP } from "../_helpers/otp-session";
 
 export default [
-  mfaFlow("sai-ma", "01. NHẬP SAI MÃ AUTHENTICATOR", async ({ page, shot }) => {
+  mfaFlow("sai-ma", "NHẬP SAI MÃ AUTHENTICATOR", async ({ page, shot }) => {
     await signInToMfa(page, shot);
     await typeCode(page, WRONG_MFA_CODE);
     await shot("nhap-sai", "Nhập sai mã Authenticator");
@@ -20,8 +20,8 @@ export default [
     await pickerHeading(page).waitFor();
     await shot("chon-don-vi", "Xác thực xong, chọn đơn vị làm việc");
   }),
-  mfaFlow("tam-khoa", "02. NHẬP SAI MÃ QUÁ SỐ LẦN", async ({ page, shot, mfa }) => {
-    await signInToMfa(page);
+  mfaFlow("tam-khoa", "NHẬP SAI MÃ QUÁ SỐ LẦN", async ({ page, shot, mfa }) => {
+    await signInToMfa(page, shot);
     while (mfa.failures < MAX_ATTEMPTS - 1) {
       await typeCode(page, WRONG_MFA_CODE);
       await press(page, "Xác thực");
@@ -37,7 +37,7 @@ export default [
     await button(page, "Thử lại sau 15:00").waitFor();
     await shot("cho-thu-lai", "Nút Xác thực đếm ngược thời gian khóa");
   }),
-  mfaFlow("ma-du-phong", "03. XÁC THỰC BẰNG MÃ DỰ PHÒNG", async ({ page, shot }) => {
+  mfaFlow("ma-du-phong", "XÁC THỰC BẰNG MÃ DỰ PHÒNG", async ({ page, shot }) => {
     await signInToMfa(page, shot);
     await press(page, "Dùng mã dự phòng");
     await recoveryInput(page).waitFor();
@@ -52,16 +52,18 @@ export default [
     await pickerHeading(page).waitFor();
     await shot("chon-don-vi", "Chọn đơn vị làm việc");
   }),
-  mfaFlow("ma-du-phong-sai", "04. NHẬP SAI MÃ DỰ PHÒNG", async ({ page, shot }) => {
-    await signInToMfa(page);
+  mfaFlow("ma-du-phong-sai", "NHẬP SAI MÃ DỰ PHÒNG", async ({ page, shot }) => {
+    await signInToMfa(page, shot);
     await press(page, "Dùng mã dự phòng");
+    await recoveryInput(page).waitFor();
+    await shot("nhap-ma-du-phong", "Chuyển sang nhập mã dự phòng");
     await recoveryInput(page).pressSequentially(WRONG_RECOVERY_CODE);
     await shot("da-nhap", "Nhập mã dự phòng không đúng");
     await press(page, "Xác thực");
     await failure(page, "Mã dự phòng không đúng", MESSAGES.invalidRecoveryCode);
     await shot("sai-ma", "Mã dự phòng không đúng hoặc đã dùng");
   }),
-  mfaFlow("passkey", "05. XÁC THỰC BẰNG PASSKEY", async ({ page, shot }) => {
+  mfaFlow("passkey", "XÁC THỰC BẰNG PASSKEY", async ({ page, shot }) => {
     await signInToMfa(page, shot);
     await press(page, "Xác thực bằng passkey");
     await button(page, "Đang chờ passkey…").waitFor();
@@ -70,12 +72,14 @@ export default [
     await pickerHeading(page).waitFor();
     await shot("chon-don-vi", "Xác thực xong, chọn đơn vị làm việc");
   }),
-  mfaFlow("mat-dien-thoai", "06. MẤT ĐIỆN THOẠI, ĐẶT LẠI MFA BẰNG MÃ DỰ PHÒNG", async ({ page, shot }) => {
-    await signInToMfa(page);
+  mfaFlow("mat-dien-thoai", "MẤT ĐIỆN THOẠI, ĐẶT LẠI MFA BẰNG MÃ DỰ PHÒNG", async ({ page, shot }) => {
+    await signInToMfa(page, shot);
     await press(page, "Mất điện thoại?");
     await page.getByRole("heading", { name: "Mất điện thoại?", exact: true }).waitFor();
     await shot("mat-dien-thoai", "Hướng dẫn khi mất điện thoại");
     await press(page, "Dùng mã dự phòng");
+    await button(page, "Đặt lại MFA").waitFor();
+    await shot("dung-ma-du-phong", "Nhập mã dự phòng, có lựa chọn Đặt lại MFA");
     await press(page, "Đặt lại MFA");
     await page.getByRole("heading", { name: "Đặt lại xác thực hai lớp", exact: true }).waitFor();
     await shot("dat-lai", "Đặt lại MFA bằng mã dự phòng");
@@ -89,14 +93,14 @@ export default [
     await button(page, "Chọn kênh nhận mã OTP").waitFor();
     await shot("thiet-lap", "Đã đặt lại, thiết lập Authenticator mới");
   }),
-  mfaFlow("quay-ve-dang-nhap", "07. QUAY VỀ TRANG ĐĂNG NHẬP", async ({ page, shot }) => {
+  mfaFlow("quay-ve-dang-nhap", "QUAY VỀ TRANG ĐĂNG NHẬP", async ({ page, shot }) => {
     await signInToMfa(page, shot);
     await press(page, "Quay về trang đăng nhập");
     await page.getByRole("heading", { name: "Đăng nhập", exact: true }).waitFor();
     await page.locator("#identifier").waitFor();
     await shot("dang-nhap", "Hủy lần đăng nhập, về trang đăng nhập");
   }),
-  mfaFlow("thiet-lap", "08. BẮT BUỘC THIẾT LẬP XÁC THỰC HAI LỚP", async ({ page, shot }) => {
+  mfaFlow("thiet-lap", "BẮT BUỘC THIẾT LẬP XÁC THỰC HAI LỚP", async ({ page, shot }) => {
     await openLogin(page);
     await fill(page, PHONE);
     await shot("da-nhap", "Nhập số điện thoại và mật khẩu");

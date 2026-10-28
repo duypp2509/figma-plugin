@@ -1,15 +1,19 @@
 import { expect } from "playwright/test";
 import {
-  DA_NANG, GIA_LAI, HA_DONG, MESSAGES, VAN_QUAN, advancedButton, choose, directoryFlow, nameCell, openDirectory, rows, scrollTableToEnd, search, searchBox, tab, waitRows,
+  DA_NANG, GIA_LAI, HA_DONG, MESSAGES, VAN_QUAN, appliedFilters, applyFilters, directoryFlow, filterButton, filterPanel, nameCell, openDirectory,
+  openFilters, pick, rows, search, searchBox, tab, tick, waitRows,
 } from "../../_helpers/superplatform-directory";
 
 const NO_MATCH = "Không có đơn vị nào khớp.";
 
 export default [
   directoryFlow({
-    id: "tim-kiem", name: "03. TÌM THEO SỐ ĐIỆN THOẠI HOẶC MÃ SỐ",
+    id: "tim-kiem", name: "TÌM THEO SỐ ĐIỆN THOẠI HOẶC MÃ SỐ",
     async run({ page, shot }) {
       await openDirectory(page, "?tab=POST_OFFICE");
+      await nameCell(page, VAN_QUAN.name).waitFor();
+      await shot("danh-sach-buu-cuc", "Thẻ Bưu cục, ô tìm kiếm", { mode: "fullPage" });
+
       await search(page, "van quan");
       await expect(rows(page)).toHaveCount(1);
       await nameCell(page, VAN_QUAN.name).waitFor();
@@ -18,8 +22,6 @@ export default [
       await search(page, "+84 24 3355 1234");
       await expect(rows(page)).toHaveCount(1);
       await nameCell(page, VAN_QUAN.name).waitFor();
-      // The post-office table is wider than the card at 1440 px: scroll it so the phone column shows.
-      await scrollTableToEnd(page);
       await page.getByRole("cell", { name: "024 3355 1234", exact: true }).waitFor();
       await shot("tim-so-dien-thoai", "Gõ số điện thoại có +84: ra bưu cục có số đó", { mode: "fullPage" });
 
@@ -30,7 +32,7 @@ export default [
       await search(page, "0109876543");
       await expect(rows(page)).toHaveCount(1);
       await nameCell(page, HA_DONG.name).waitFor();
-      await shot("tim-ma-so-doanh-nghiep", "Thẻ Nhượng quyền: gõ mã số doanh nghiệp", { mode: "fullPage" });
+      await shot("tim-ma-so-doanh-nghiep", "Sang thẻ Nhượng quyền, gõ mã số doanh nghiệp", { mode: "fullPage" });
 
       await search(page, "064085006358");
       await expect(rows(page)).toHaveCount(1);
@@ -42,7 +44,7 @@ export default [
       await page.getByRole("heading", { name: NO_MATCH, exact: true }).waitFor();
       await shot("mot-phan-so-dinh-danh", "Gõ một phần số định danh: không ra", { mode: "fullPage" });
 
-      await page.getByRole("button", { name: "Xóa tìm kiếm", exact: true }).click();
+      await search(page, "");
       await waitRows(page);
       await searchBox(page).fill("Nhượng quyền vận chuyển giao nhận hàng hóa nhanh tại các phường trung tâm Thành phố Hà Nội và Thành phố Hồ Chí Minh");
       await page.getByText(MESSAGES.searchTooLong, { exact: true }).waitFor();
@@ -50,30 +52,44 @@ export default [
     },
   }),
   directoryFlow({
-    id: "khong-khop", name: "04. KHÔNG CÓ ĐƠN VỊ NÀO KHỚP",
+    id: "khong-khop", name: "KHÔNG CÓ ĐƠN VỊ NÀO KHỚP",
     async run({ page, shot }) {
       await openDirectory(page);
+      await nameCell(page, HA_DONG.name).waitFor();
+      await shot("danh-sach", "Danh sách tổ chức, thẻ Nhượng quyền", { mode: "fullPage" });
+
       await search(page, "Long Biên");
       await page.getByRole("heading", { name: NO_MATCH, exact: true }).waitFor();
-      await shot("khong-khop-tu-khoa", "Không có đơn vị nào khớp từ khóa, nút Xóa tìm kiếm", { mode: "fullPage" });
+      await shot("khong-khop-tu-khoa", "Gõ Long Biên: không có đơn vị nào khớp từ khóa", { mode: "fullPage" });
 
-      await page.getByRole("button", { name: "Xóa tìm kiếm", exact: true }).click();
+      // The list has no "Xóa tìm kiếm" button of its own: the box is emptied.
+      await search(page, "");
       await waitRows(page);
       await expect(searchBox(page)).toHaveValue("");
-      await shot("xoa-tim-kiem", "Xóa tìm kiếm: danh sách trở lại", { mode: "fullPage" });
+      await shot("xoa-tim-kiem", "Xóa từ khóa: danh sách trở lại", { mode: "fullPage" });
 
-      await choose(page, "filter-status", "Tạm ngưng");
-      await advancedButton(page).click();
-      await choose(page, "filter-provinceCode", "Thành phố Đà Nẵng");
+      await openFilters(page);
+      await tick(page, "Tạm ngưng");
+      await tick(page, "Tỉnh/Thành phố");
+      await pick(page, "Tỉnh/Thành phố", "Thành phố Đà Nẵng");
+      await shot("chon-bo-loc", "Bấm Bộ lọc, chọn Tạm ngưng và Thành phố Đà Nẵng");
+
+      await applyFilters(page);
       await page.getByRole("heading", { name: NO_MATCH, exact: true }).waitFor();
-      await expect(advancedButton(page)).toHaveText("Bộ lọc nâng cao (1)");
-      await shot("khong-khop-bo-loc", "Không có đơn vị nào khớp bộ lọc, nút Xóa bộ lọc", { mode: "fullPage" });
+      await appliedFilters(page, 2).waitFor();
+      await shot("khong-khop-bo-loc", "Áp dụng: không có đơn vị nào khớp bộ lọc", { mode: "fullPage" });
 
-      await page.getByRole("button", { name: "Xóa bộ lọc", exact: true }).click();
+      await openFilters(page);
+      await filterPanel(page).getByRole("button", { name: "Bỏ lọc", exact: true }).waitFor();
+      await shot("mo-lai-bo-loc", "Mở lại Bộ lọc: nút Bỏ lọc");
+
+      await filterPanel(page).getByRole("button", { name: "Bỏ lọc", exact: true }).click();
       await waitRows(page);
       await nameCell(page, DA_NANG.name).waitFor();
-      await expect(advancedButton(page)).toHaveText("Bộ lọc nâng cao");
-      await shot("xoa-bo-loc", "Xóa bộ lọc: mọi ô về mặc định", { mode: "fullPage" });
+      await page.keyboard.press("Escape");
+      await filterPanel(page).waitFor({ state: "hidden" });
+      await expect(filterButton(page)).toHaveAccessibleName("Bộ lọc");
+      await shot("xoa-bo-loc", "Bỏ lọc: danh sách trở lại mặc định", { mode: "fullPage" });
     },
   }),
 ];

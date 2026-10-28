@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import type { Locator, Page, Request } from "playwright";
 import { expect } from "playwright/test";
 import { defineFlow, type FlowContext } from "../../capture";
@@ -19,6 +21,10 @@ const ME = { full_name: "Nguyễn Minh Anh", organization_name: "SuperTek" };
 /** Exact sentences of the backend. */
 export const MESSAGES = {
   profileSuspended: "Đơn vị đang tạm ngưng, kích hoạt lại rồi mới sửa được hồ sơ.",
+  /** notifyRequestError: every 403 of a save shows this, not the server's own sentence. */
+  forbidden: "Bạn không thể thực hiện thao tác này với quyền hiện tại.",
+  /** CalendarPicker: a day typed that does not exist. */
+  dayInvalid: "Ngày bắt đầu chưa hợp lệ. Nhập theo dạng dd/mm/yyyy.",
   profileConflict: "Hồ sơ vừa được người khác sửa. Hãy tải lại rồi sửa tiếp.",
   logoConflict: "Hồ sơ vừa được người khác sửa. Hãy tải lại rồi đổi logo.",
   noChange: "Không có thay đổi.",
@@ -72,6 +78,11 @@ const day = (value: string | null) => {
 const typeWord = (typeCode: string) => typeCode === "POST_OFFICE" ? "bưu cục" : typeCode === "FRANCHISE_PARTNER" ? "nhượng quyền" : "Tổng công ty";
 
 /* ---- Units ---- */
+
+/** The SuperShip logo the server gives every unit created without one (OperationalCreationSupport.defaultLogo). */
+const DEFAULT_LOGO = readFileSync(path.join(import.meta.dirname, "assets", "supership-default-logo.png"));
+/** Each unit keeps its own copy of the default logo, at its own address. */
+export const defaultLogoUrl = (id: string) => `/api/backend/files/organizations/${id}/default-logo.png`;
 
 export interface Address {
   address_line: string; province_code: string | null; province_name: string; ward_code: string | null; ward_name: string;
@@ -153,21 +164,40 @@ function units(): Record<string, Unit> {
   return Object.fromEntries([corporation, franchise, postOffice,
     office("org-yn", "BCT01H6C8V3", "BƯU CỤC YÊN NGHĨA", "PICKUP", "2025-04-01T01:00:00Z", "02433551188"),
     office("org-dn2", "BCT01B9F4L7", "BƯU CỤC DƯƠNG NỘI", "DELIVERY", "2025-05-12T01:00:00Z", "02433552266"),
-  ].map(unit => [unit.id, unit]));
+  ].map(unit => [unit.id, { ...unit, logo_url: defaultLogoUrl(unit.id) }]));
 }
 
 /** The franchise's legal information as the legal function keeps it (flow "Thông tin pháp lý"). */
 const LEGAL = { legal_form_name: "Doanh nghiệp", enterprise_type_name: "Công ty TNHH hai thành viên trở lên",
   registered_name: "CÔNG TY TNHH VẬN CHUYỂN HÀ ĐÔNG", registration_number_display: "0109876543", verification_status: "VERIFIED",
   verification_status_name: "Đã xác minh", registered_address: "Số 25 đường Quang Trung, Phường Hà Đông, Thành phố Hà Nội",
-  invoice_email: "ketoan@vanchuyenhadong.vn" };
+  invoice_email: "ketoan@vanchuyenhadong.vn", certificate_issued_on: "16/05/2023",
+  certificate_issuer: "Phòng Đăng ký kinh doanh - Sở Tài chính Thành phố Hà Nội", latest_amendment: "Lần 1 · 04/11/2024",
+  household_owner_name: null, private_owner_name: null };
 const CORPORATION_LEGAL = { legal_form_name: "Doanh nghiệp", enterprise_type_name: "Công ty cổ phần",
   registered_name: "CÔNG TY CỔ PHẦN SUPERSHIP VIỆT NAM", registration_number_display: "0313791580", verification_status: "VERIFIED",
-  verification_status_name: "Đã xác minh", registered_address: "Số 1 Phổ Quang, Phường Tân Sơn Hòa, Thành phố Hồ Chí Minh", invoice_email: null };
-const REPRESENTATIVES: Record<string, { full_name: string; position_title: string }[]> = {
-  [CORPORATION_ID]: [{ full_name: "Đỗ Thành Nhân", position_title: "Tổng giám đốc" }],
-  [FRANCHISE_ID]: [{ full_name: "Nguyễn Văn An", position_title: "Giám đốc" }, { full_name: "Trần Thị Mai", position_title: "Chủ tịch Hội đồng thành viên" }],
+  verification_status_name: "Đã xác minh", registered_address: "Số 1 Phổ Quang, Phường Tân Sơn Hòa, Thành phố Hồ Chí Minh", invoice_email: null,
+  certificate_issued_on: "29/12/2015", certificate_issuer: "Phòng Đăng ký kinh doanh - Sở Kế hoạch và Đầu tư Thành phố Hồ Chí Minh",
+  latest_amendment: "Lần 9 · 12/08/2025", household_owner_name: null, private_owner_name: null };
+const verified = { verification_status: "VERIFIED", verification_status_name: "Đã xác minh" };
+const REPRESENTATIVES: Record<string, { full_name: string; position_title: string; verification_status: string; verification_status_name: string }[]> = {
+  [CORPORATION_ID]: [{ full_name: "Đỗ Thành Nhân", position_title: "Tổng giám đốc", ...verified }],
+  [FRANCHISE_ID]: [{ full_name: "Nguyễn Văn An", position_title: "Giám đốc", ...verified },
+    { full_name: "Trần Thị Mai", position_title: "Chủ tịch Hội đồng thành viên", verification_status: "UNVERIFIED", verification_status_name: "Chưa xác minh" }],
 };
+/** Who holds the "Quản lý nhượng quyền" / "Trưởng bưu cục" seat (ManagerSeatStatus, HAS_MANAGER). */
+const MANAGERS: Record<string, { full_name: string; employee_number: string; since: string }> = {
+  [FRANCHISE_ID]: { full_name: "Lê Văn Hùng", employee_number: "SST00342", since: "Từ 15/03/2025" },
+  [POST_OFFICE_ID]: { full_name: "Phạm Thu Hà", employee_number: "SST00517", since: "Từ 20/03/2025" },
+};
+/** "Địa điểm phục vụ" of Bưu cục Văn Quán: wards of the 3-level map, as the service-ward list keeps them. */
+const SERVICE_WARDS: Record<string, string[]> = {
+  [POST_OFFICE_ID]: ["Phường Văn Quán", "Phường Mộ Lao", "Phường Phúc La", "Phường Hà Cầu", "Phường Quang Trung", "Phường Vạn Phúc"],
+};
+
+const HELP_TITLES: Record<string, string> = { "organization-profile": "Hồ sơ tổ chức",
+  "organization-manager": "Quản lý nhượng quyền, Trưởng bưu cục", "organization-contacts": "Liên hệ của tổ chức",
+  "organization-addresses": "Địa chỉ của tổ chức" };
 
 /* ---- The mock ---- */
 
@@ -181,6 +211,8 @@ export interface UnitMock {
   bodies: any[];
   /** Runs once right before the next save is answered, e.g. another manager saving first. */
   beforeWrite: (() => void) | null;
+  /** The right to change the profile was taken away after the page loaded: the next saves get 403. */
+  revoked: boolean;
 }
 export interface UnitContext extends FlowContext { mock: UnitMock }
 
@@ -192,7 +224,7 @@ export function unitFlow(feature: UnitFeature, { id, name, role = "admin", setup
   return defineFlow({
     id: `superplatform-${feature}-${id}`, name, app: "superplatform", group: franchiseGroup(feature),
     async run(ctx) {
-      const mock: UnitMock = { units: units(), role, writes: 0, bodies: [], beforeWrite: null };
+      const mock: UnitMock = { units: units(), role, writes: 0, bodies: [], beforeWrite: null, revoked: false };
       setup?.(mock.units);
       await mockUnits(ctx.page, ctx.log, mock);
       await run({ ...ctx, mock });
@@ -220,7 +252,10 @@ const blocked = (reason: string) => ({ available: true, enabled: false, disabled
 const change = (permitted: boolean, unit: Unit, reason: string) => !permitted ? unavailable : unit.status === "ACTIVE" ? allowed : blocked(reason);
 const statusName = (status: string) => status === "ACTIVE" ? "Đang hoạt động" : "Tạm ngưng";
 
-class Refusal { constructor(readonly status: number, readonly code: string, readonly message: string, readonly fields?: Record<string, string>) {} }
+class Refusal {
+  constructor(readonly status: number, readonly code: string, readonly message: string, readonly fields?: Record<string, string>,
+    readonly extra?: Record<string, string>) {}
+}
 const field = (key: string, message: string) => new Refusal(400, "ORGANIZATION_INPUT_INVALID", message, { [key]: message });
 const conflict = (message: string) => new Refusal(409, "VERSION_CONFLICT", message);
 const unchanged = () => new Refusal(409, "NO_CHANGE", MESSAGES.noChange);
@@ -283,9 +318,11 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
         invoice_email: franchise ? legal.invoice_email ?? MISSING : null }
         : { declared: false, via_franchise_name: postOffice ? unit.parent!.name : null, legal_form_name: MISSING, enterprise_type_name: null,
           registered_name: MISSING, registration_number_display: MISSING, verification_status: null, verification_status_name: MISSING,
-          registered_address: MISSING, invoice_email: franchise ? MISSING : null },
+          registered_address: MISSING, invoice_email: franchise ? MISSING : null, certificate_issued_on: null, certificate_issuer: null,
+          latest_amendment: null, household_owner_name: null, private_owner_name: null },
       legal_representatives: postOffice ? null
-        : representatives.length ? representatives : [{ full_name: null, position_title: null, value: MISSING, missing: true }],
+        : representatives.length ? representatives : [{ full_name: null, position_title: null, value: MISSING, missing: true,
+          verification_status: null, verification_status_name: null }],
       addresses: addressKinds(unit).map(kind => { const value = unit.addresses[kind.type];
         return { type: kind.type, type_name: kind.type_name, value: value ? addressText(value) : "Chưa có", missing: !value }; }),
       contacts: contactKinds(unit).map(kind => { const value = unit.contacts[kind.type];
@@ -293,7 +330,30 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
       version: unit.version,
       actions: { edit, change_logo: edit,
         change_operation_model: postOffice ? change(admin, unit, "Bưu cục đang tạm ngưng, kích hoạt lại rồi mới đổi được loại hình.") : unavailable },
+      manager: manager(unit),
     };
+  };
+  /** ManagerSeatStatus.held: the holder, and "Đổi …" only for an administrator while the unit is active. */
+  const manager = (unit: Unit) => {
+    if (unit.type_code === "CORPORATION") return null;
+    const franchise = unit.type_code === "FRANCHISE_PARTNER";
+    const noun = franchise ? "quản lý" : "Trưởng bưu cục";
+    const holder = MANAGERS[unit.id];
+    const open = admin && unit.status === "ACTIVE" && !blockedAbove(unit);
+    const actions = { invite: unavailable, reissue: unavailable, cancel: unavailable, approve: unavailable,
+      change: holder && open ? allowed : unavailable };
+    return { seat: franchise ? "FRANCHISE_MANAGER" : "POST_OFFICE_MANAGER", label: franchise ? "Quản lý nhượng quyền" : "Trưởng bưu cục",
+      state: holder ? "HAS_MANAGER" : "NO_MANAGER", state_name: `${holder ? "Đã có" : "Chưa có"} ${noun}`, lines: [],
+      people: holder ? [{ ...holder, employee_profile_id: `emp-${unit.id}`, organization_id: unit.id }] : [],
+      invitation: null, actions: holder ? actions : { ...actions, invite: open ? allowed : unavailable }, change: null };
+  };
+  /** GET /v1/admin/organizations/{id}/service-wards of a post office. */
+  const serviceWards = (unit: Unit) => {
+    const names = SERVICE_WARDS[unit.id] ?? [];
+    return { organization_id: unit.id, total: names.length, reminder: names.length ? null : "Chưa có địa điểm phục vụ",
+      wards: names.map((ward_name, i) => ({ province_code: "01", province_name: "Thành phố Hà Nội", district_code: "268",
+        district_name: "Quận Hà Đông", ward_code: String(9538 + i * 3).padStart(5, "0"), ward_name, since: "2025-03-20", also_served_by: [] })),
+      actions: { edit: change(admin, unit, "Bưu cục đang tạm ngưng, kích hoạt lại rồi mới sửa được địa điểm phục vụ."), history: allowed } };
   };
   const contacts = (unit: Unit) => ({ organization_id: unit.id, version: unit.contactsVersion,
     items: contactKinds(unit).map(kind => ({ type: kind.type, type_name: kind.type_name, value_kind: kind.value_kind, required: kind.required,
@@ -341,7 +401,13 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
     list.unshift({ id: `${type}-${list.length + 1}`, type, before, after, at: LATER, by: ME });
   };
 
+  /** AdminUnitAccess.require: the permission is asked again on every save. */
+  const requireUpdate = () => {
+    if (!admin || mock.revoked) throw new Refusal(403, "PERMISSION_DENIED", "Bạn không có quyền sửa hồ sơ đơn vị này.", undefined,
+      { permission: "organization.profile.update" });
+  };
   const saveProfile = (unit: Unit, body: any) => {
+    requireUpdate();
     requireActive(unit, "sửa được hồ sơ");
     const raw = String(body?.name ?? "").trim();
     if (!raw) throw field("name", "Hãy nhập tên đơn vị.");
@@ -357,6 +423,7 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
     return profile(unit);
   };
   const saveLogo = (unit: Unit, request: Request) => {
+    requireUpdate();
     requireActive(unit, "sửa được hồ sơ");
     const { version, file } = multipart(request);
     if (!file) throw field("logo", "Hãy chọn ảnh JPEG, PNG hoặc WebP, tối đa 8000 × 8000 điểm ảnh.");
@@ -456,7 +523,7 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
       try { const data = answer(); if (method !== "GET") mock.writes++; return send(data, 200, typeof message === "function" ? message() : message); }
       catch (error) {
         if (!(error instanceof Refusal)) throw error;
-        return send({ code: error.code, ...(error.fields ? { fields: error.fields } : {}) }, error.status, error.message);
+        return send({ code: error.code, ...(error.fields ? { fields: error.fields } : {}), ...error.extra }, error.status, error.message);
       }
     };
 
@@ -467,12 +534,33 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
     });
     /* ---- Shell ---- */
     if (path === "/v1/me/employee-invitations/count") return send({ pending: 0 });
+    // The (?) after a title: the guide of the function, served by the help service.
+    const help = url.pathname.match(/^\/api\/help\/v1\/help\/functions\/([^/]+)$/);
+    if (help) return send({ code: help[1], title: HELP_TITLES[help[1]!] ?? "Tổ chức", group_title: "Tổ chức", article_markdown: "" });
+    if (path === "/v1/me/profile-update-request") return send(null);
+    if (path === "/v1/me/reminders") return send({ items: [], banners: [], notices: [] });
+    if (path === "/v1/public/apps/current") return send({ id: "app-superplatform", code: "SUPERPLATFORM", name: "SuperPlatform",
+      app_group: "INTERNAL", status: "ACTIVE" });
+    if (path === "/v1/me/access-context/token") return send({ access_token: "capture-context-token", token_type: "Bearer", expires_in: 900,
+      access_token_expires_at: "2026-12-31T00:00:00Z", active_context: { context_id: "pin-context", active_membership_id: "pin-member",
+        org_code: "SUPERTEK", org_name: "SuperTek", application_code: "SUPERPLATFORM", context_version: 1 } });
+    if (/^\/files\/organizations\/[^/]+\/default-logo\.png$/.test(path))
+      return route.fulfill({ status: 200, contentType: "image/png", body: DEFAULT_LOGO });
     if (path === "/v1/shops/list-options") return send({ internal_allowed: true, shops_allowed: false, types: [], statuses: [],
       franchises: [], post_offices: [], operation_models: [] });
-    if (path === "/v1/organizations/list-options") return send({ internal_allowed: true, shops_allowed: false,
-      types: [{ code: "FRANCHISE_PARTNER", name: "Nhượng quyền" }, { code: "POST_OFFICE", name: "Bưu cục" }],
-      statuses: [{ code: "", name: "Tất cả" }, { code: "ACTIVE", name: "Đang hoạt động" }, { code: "SUSPENDED", name: "Tạm ngưng" }, { code: "CLOSED", name: "Ngừng hoạt động" }],
-      franchises: [], post_offices: [], operation_models: Object.entries(OPERATION_MODELS).map(([code, name]) => ({ code, name })) });
+    if (path === "/v1/organizations/list-options") {
+      // Asked for one franchise (its overview's "Bưu cục trực thuộc"): that franchise's "Mở bưu cục".
+      const franchise = mock.units[url.searchParams.get("franchiseId") ?? ""];
+      return send({ internal_allowed: true, shops_allowed: false,
+        types: [{ code: "FRANCHISE_PARTNER", name: "Nhượng quyền" }, { code: "POST_OFFICE", name: "Bưu cục" }],
+        statuses: [{ code: "", name: "Tất cả" }, { code: "ACTIVE", name: "Đang hoạt động" }, { code: "SUSPENDED", name: "Tạm ngưng" }, { code: "CLOSED", name: "Ngừng hoạt động" }],
+        franchises: [], post_offices: [], operation_models: Object.entries(OPERATION_MODELS).map(([code, name]) => ({ code, name })),
+        tabs: [{ code: "FRANCHISE_PARTNER", name: "Nhượng quyền" }, { code: "POST_OFFICE", name: "Bưu cục" }],
+        create_franchise: admin ? allowed : unavailable,
+        open_post_office: !franchise || !admin ? unavailable : franchise.status === "ACTIVE" ? allowed
+          : blocked(`${franchise.name} đang tạm ngưng, không mở được bưu cục.`),
+        empty_message: franchise ? `${franchise.name} chưa có bưu cục nào.` : null });
+    }
     /* ---- "Bưu cục trực thuộc" of a franchise ---- */
     if (path === "/v1/organizations" && method === "GET") {
       const type = url.searchParams.get("typeCode"), franchise = url.searchParams.get("franchiseId");
@@ -507,6 +595,7 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
         return send(province ? WARDS[province] ?? [] : PROVINCES);
       }
       if (rest === "status") return send(status(unit));
+      if (rest === "service-wards") return send(serviceWards(unit));
     }
 
     /* ---- Organization page ---- */
@@ -558,17 +647,46 @@ export const unitUrl = (id: string, section?: "contacts" | "addresses") =>
 /** "Tổng quan" of a unit, with every card loaded. */
 export async function openOverview(page: Page, id: string) {
   await page.goto(unitUrl(id));
+  await waitOverview(page);
+}
+/** Waits until "Tổng quan" has every card loaded, e.g. after its link in the side panel was pressed. */
+export async function waitOverview(page: Page) {
   await page.getByRole("heading", { name: "Tổng quan tổ chức", exact: true }).waitFor();
   await page.getByRole("heading", { name: "Địa chỉ", exact: true }).waitFor();
   await page.getByRole("status", { name: "Đang tải số bưu cục" }).waitFor({ state: "hidden" });
+  await page.getByRole("status", { name: "Đang tải địa điểm phục vụ" }).waitFor({ state: "hidden" });
+  await page.getByRole("button", { name: "Hướng dẫn: Hồ sơ tổ chức", exact: true }).waitFor();
   await page.locator(".organization-sidebar .organization-sidebar-identity").waitFor();
 }
+/** The logo of the unit on the overview card. */
+export const overviewLogo = (page: Page, name: string) =>
+  page.locator(".organization-overview-identity").getByRole("img", { name: `Logo ${name}`, exact: true });
 export const editProfileButton = (page: Page) => page.getByRole("button", { name: "Sửa hồ sơ", exact: true });
 export const logoButton = (page: Page) => page.getByRole("button", { name: "Đổi ảnh đại diện tổ chức", exact: true });
 export const profileDialog = (page: Page) => page.getByRole("dialog", { name: "Sửa hồ sơ tổ chức" });
 export async function openProfileEdit(page: Page) {
   await editProfileButton(page).click();
   await profileDialog(page).getByLabel("Tên hiển thị").waitFor();
+}
+/** "Ngày bắt đầu hoạt động" of the edit dialog: a button that opens the shared calendar. */
+export const startDateButton = (page: Page) => profileDialog(page).locator('button[aria-haspopup="dialog"]');
+export const calendar = (page: Page) => page.getByRole("dialog", { name: "Chọn ngày", exact: true });
+/** Types a day (dd/mm/yyyy) in the calendar; `apply` closes it with "Áp dụng". */
+export async function typeStartDate(page: Page, text: string, apply = true) {
+  await startDateButton(page).click();
+  await calendar(page).getByLabel("Ngày", { exact: true }).fill(text);
+  if (!apply) return;
+  await calendar(page).getByRole("button", { name: "Áp dụng", exact: true }).click();
+  await calendar(page).waitFor({ state: "hidden" });
+}
+/** Points at a greyed button until its reason shows in the dark tooltip (DisabledReason). */
+export async function showDisabledReason(page: Page, button: Locator, reason: string) {
+  await button.locator("xpath=..").hover();
+  await page.getByRole("tooltip").getByText(reason, { exact: true }).waitFor();
+}
+/** Goes to another section of the unit by its link in the side panel ("Tổng quan", "Liên hệ", "Địa chỉ"…). */
+export async function sideLink(page: Page, label: string) {
+  await page.locator(".organization-sidebar").getByRole("link", { name: label, exact: true }).click();
 }
 export async function saveProfile(page: Page) {
   await profileDialog(page).getByRole("button", { name: "Lưu thay đổi", exact: true }).click();
@@ -598,16 +716,40 @@ export async function scrollTop(page: Page) {
   await page.evaluate(() => { (document.activeElement as HTMLElement | null)?.blur(); document.querySelectorAll<HTMLElement>(".ui-workspace-content").forEach(node => { node.scrollTop = 0; }); window.scrollTo(0, 0); });
 }
 
-/** A square logo drawn in the page, so the picture needs no file on disk. */
+/**
+ * Presses the pencil at the corner of the logo, picks the file in the file chooser it opens and waits for the crop
+ * dialog, with no button left in focus (a mouse user sees no ring).
+ */
+export async function chooseLogo(page: Page) {
+  const file = await logoFile(page);
+  const [chooser] = await Promise.all([page.waitForEvent("filechooser"), logoButton(page).click()]);
+  await chooser.setFiles(file);
+  const crop = page.getByRole("dialog", { name: "Thay đổi ảnh đại diện" });
+  await crop.getByRole("button", { name: "Xác nhận", exact: true }).and(page.locator(":enabled")).waitFor();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  return crop;
+}
+/** The company logo of Vận chuyển Hà Đông (720 × 540, the emblem in the middle), drawn in the page: no file on disk. */
 export async function logoFile(page: Page) {
-  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><rect width="160" height="160" rx="32" fill="#0f766e"/><text x="80" y="88" font-family="sans-serif" font-weight="bold" font-size="64" fill="#fff" text-anchor="middle" dominant-baseline="middle">HĐ</text></svg>';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 540">
+    <rect width="720" height="540" fill="#0f766e"/>
+    <g transform="translate(360 270) scale(1.1) translate(-270 -294)">
+      <rect x="85" y="176" width="25" height="9" rx="4.5" fill="#fde68a"/><rect x="75" y="206" width="35" height="9" rx="4.5" fill="#fde68a"/>
+      <rect x="92" y="236" width="18" height="9" rx="4.5" fill="#fde68a"/>
+      <rect x="120" y="150" width="185" height="120" rx="12" fill="#fff"/>
+      <path d="M314 185h62l36 42v43H314z" fill="#fff"/><path d="M328 198h41l26 31h-67z" fill="#0f766e"/>
+      <circle cx="178" cy="276" r="28" fill="#fff" stroke="#0f766e" stroke-width="8"/><circle cx="178" cy="276" r="9" fill="#0f766e"/>
+      <circle cx="360" cy="276" r="28" fill="#fff" stroke="#0f766e" stroke-width="8"/><circle cx="360" cy="276" r="9" fill="#0f766e"/>
+      <text x="270" y="385" font-family="Segoe UI, Arial, sans-serif" font-weight="800" font-size="66" fill="#fff" text-anchor="middle">HÀ ĐÔNG</text>
+      <text x="270" y="438" font-family="Segoe UI, Arial, sans-serif" font-weight="700" font-size="30" letter-spacing="10" fill="#fde68a" text-anchor="middle">EXPRESS</text>
+    </g></svg>`;
   const data = await page.evaluate(async source => {
     const image = new Image(); image.src = `data:image/svg+xml,${encodeURIComponent(source)}`; await image.decode();
-    const canvas = document.createElement("canvas"); canvas.width = canvas.height = 320;
-    canvas.getContext("2d")!.drawImage(image, 0, 0, 320, 320);
+    const canvas = document.createElement("canvas"); canvas.width = 720; canvas.height = 540;
+    canvas.getContext("2d")!.drawImage(image, 0, 0, 720, 540);
     return canvas.toDataURL("image/png").split(",")[1]!;
   }, svg);
-  return { name: "logo-ha-dong.png", mimeType: "image/png", buffer: Buffer.from(data, "base64") };
+  return { name: "logo-ha-dong-express.png", mimeType: "image/png", buffer: Buffer.from(data, "base64") };
 }
 
 export { expect };

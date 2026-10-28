@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import type { Page, Request } from "playwright";
 import { expect } from "playwright/test";
 import { defineFlow, type FlowContext } from "../../capture";
@@ -6,30 +8,42 @@ import { franchiseGroup, type FranchiseSection } from "./superplatform-franchise
 import { pickCalendarDay } from "./calendar";
 
 /*
- * "Thông tin pháp lý" (/workspace/organizations/{id}?section=legal-entities, /legal/edit, /legal/replace) and
- * "Người đại diện" (?section=representatives) of SuperPlatform, against an in-browser stand-in of
- * /v1/organizations/{id}/legal-profile/** and /v1/organizations/{id}/representatives/**, plus the organization pages
- * around them. Shapes and sentences follow OrganizationLegalProfileService, LegalProfilePresenter, LegalProfileRules,
+ * "Thông tin pháp lý" (/workspace/organizations/{id}?section=legal-entities, /legal/edit, /legal/replace,
+ * /legal/history) and "Người đại diện" (?section=representatives) of SuperPlatform, against an in-browser stand-in of
+ * /v1/organizations/{id}/legal-profile/** (change requests included) and /v1/organizations/{id}/representatives/**,
+ * plus the organization pages around them and POST /v1/document-uploads (the registration certificate, read on
+ * upload). Shapes and sentences follow OrganizationLegalProfileService, LegalProfilePresenter, LegalProfileRules,
  * OrganizationRepresentativeService and RepresentativeRules. The page clock is frozen by mockPin at 12/10/2026 09:00,
- * so "today" and every date below stay the same on each run. There is no "Lý do" anywhere (product decision).
+ * so "today" and every date below stay the same on each run.
+ *
+ * Roles: "admin" is Nguyễn Minh Anh, Quản trị hệ thống: verifies, and their own "Sửa" of verified details and "Thay
+ * chủ thể" take effect at once, verified against the source they name (Đ2-18). "manager" is Phạm Thu Trang, Quản lý
+ * nhượng quyền: such a change becomes a change request waiting for the verification (P12, P13).
  */
 
 export const STEP_UP_CODE = "515060";
 const NOW = "2026-10-12T02:00:00.000Z";
 const TODAY = "2026-10-12";
 const ADMIN = "Nguyễn Minh Anh";
+const MANAGER = "Phạm Thu Trang";
 
 /** Exact sentences of the backend. */
 export const MESSAGES = {
   declared: "Đã khai báo thông tin pháp lý. Đang chờ Quản trị hệ thống xác minh.",
   saved: "Đã lưu thông tin pháp lý.",
   savedPending: "Đã lưu thông tin pháp lý. Đang chờ Quản trị hệ thống xác minh lại.",
-  replaced: "Đã thay chủ thể pháp lý. Hãy bổ nhiệm người đại diện cho chủ thể mới. Đang chờ Quản trị hệ thống xác minh.",
+  amendmentSent: "Đã gửi yêu cầu sửa thông tin pháp lý. Đang chờ Quản trị hệ thống xác minh.",
+  replaced: "Đã thay chủ thể pháp lý.",
+  replacementSent: "Đã gửi yêu cầu thay chủ thể pháp lý. Đang chờ Quản trị hệ thống xác minh.",
+  changePending: "Đang có yêu cầu thay đổi chờ xác minh.",
+  withdrawn: "Đã rút yêu cầu.",
   verified: "Đã xác minh thông tin pháp lý.",
   rejected: "Đã từ chối xác minh.",
   unchanged: "Không có thay đổi.",
   sameNumber: "Mã số giống chủ thể hiện tại. Nếu chỉ đăng ký thay đổi thì dùng Sửa.",
   notPending: "Thông tin pháp lý này không còn chờ xác minh. Hãy tải lại.",
+  requestNotPending: "Yêu cầu này không còn chờ xác minh. Hãy tải lại.",
+  sourceRequired: "Hãy chọn nguồn đối chiếu.",
   wrongCode: "Mã xác thực không đúng hoặc đã được sử dụng.",
   notActive: (name: string) => `${name} đang tạm ngưng, kích hoạt lại rồi mới cập nhật được thông tin pháp lý.`,
   appointed: "Đã bổ nhiệm người đại diện.",
@@ -130,18 +144,24 @@ const UNITS = [CORP, HA_DONG, LONG_BIEN, GIA_LAM, DONG_ANH, ME_LINH, YEN_NGHIA, 
 
 /* ---- Legal profile rows ---- */
 
-interface Verification { status: "UNVERIFIED" | "VERIFIED" | "REJECTED"; at: string | null; by: string | null; source: string | null; checked: string | null }
+interface Verification {
+  status: "UNVERIFIED" | "VERIFIED" | "REJECTED"; at: string | null; by: string | null; source: string | null; checked: string | null;
+  /** The reason chosen when it was rejected (its name, "Khác: …" for Khác). */
+  reason: string | null;
+}
 interface LegalRow {
   id: string; version: number; origin: Origin; legal_form: LegalForm; enterprise_type: string | null; registered_name: string;
   number: string; household_owner_name: string | null; certificate: { number: string; issued_on: string; issuer: string;
     latest_amendment_number: number | null; latest_amendment_on: string | null } | null;
   address: { province_code: string; ward_code: string; address_line: string }; head_office_phone: string | null;
-  head_office_email: string | null; invoice_email: string; document: string | null; valid_from: string; valid_to: string | null;
+  head_office_email: string | null; invoice_email: string; document: string | null;
+  /** Media type of the stored certificate (application/pdf unless said). */
+  document_type?: string; valid_from: string; valid_to: string | null;
   subject_started_on: string; by: string; verification: Verification;
   basis: { type: string; number: string | null; date: string | null } | null;
 }
-const verified = (at: string, source: string, by = ADMIN): Verification => ({ status: "VERIFIED", at, by, source, checked: at.slice(0, 10) });
-const unverified = (): Verification => ({ status: "UNVERIFIED", at: null, by: null, source: null, checked: null });
+const verified = (at: string, source: string, by = ADMIN, checked = at.slice(0, 10)): Verification => ({ status: "VERIFIED", at, by, source, checked, reason: null });
+const unverified = (): Verification => ({ status: "UNVERIFIED", at: null, by: null, source: null, checked: null, reason: null });
 const HN_REGISTRY = "Phòng Đăng ký kinh doanh - Sở Tài chính Thành phố Hà Nội";
 
 /** Nhượng quyền Hà Đông: declared in 2025, then the head office moved (đăng ký thay đổi lần 2) in September 2026. */
@@ -157,7 +177,7 @@ function haDongRows(status: Verification["status"]): LegalRow[] {
       certificate: { number: "0109876543", issued_on: "2023-05-16", issuer: HN_REGISTRY, latest_amendment_number: 2, latest_amendment_on: "2026-09-05" },
       address: hanoi("Số 8 đường Tố Hữu", "Phường Hà Đông"),
       verification: status === "VERIFIED" ? verified("2026-09-08T02:40:00Z", "NATIONAL_BUSINESS_REGISTRY")
-        : status === "REJECTED" ? { status, at: "2026-09-08T02:40:00Z", by: ADMIN, source: null, checked: null } : unverified() },
+        : status === "REJECTED" ? { status, at: "2026-09-08T02:40:00Z", by: ADMIN, source: null, checked: null, reason: "Thông tin không khớp giấy tờ" } : unverified() },
   ];
 }
 const LEGAL_ROWS: Record<string, (status: Verification["status"]) => LegalRow[]> = {
@@ -177,7 +197,7 @@ const LEGAL_ROWS: Record<string, (status: Verification["status"]) => LegalRow[]>
     registered_name: "HỘ KINH DOANH VẬN CHUYỂN MÊ LINH", number: "001085004321", household_owner_name: "Phạm Văn Hùng",
     certificate: { number: "01H8012345", issued_on: "2025-12-15", issuer: "Phòng Kinh tế xã Mê Linh", latest_amendment_number: null, latest_amendment_on: null },
     address: hanoi("Thôn Đại Bái", "Xã Mê Linh"), head_office_phone: "0904518236", head_office_email: null,
-    invoice_email: "hkdvanchuyenmelinh@gmail.com", document: "doc-ml-1", valid_from: "2026-02-09T02:30:00Z", valid_to: null,
+    invoice_email: "hkdvanchuyenmelinh@gmail.com", document: "doc-ml-1", document_type: "image/png", valid_from: "2026-02-09T02:30:00Z", valid_to: null,
     subject_started_on: "2026-02-09", by: ADMIN, verification: verified("2026-02-11T02:00:00Z", "TAX_PAYER_LOOKUP"), basis: null }],
 };
 
@@ -188,22 +208,26 @@ interface Rep {
   id: string; full_name: string; person: { id: string; full_name: string } | null; type: RepType; title: string;
   scope: string | null; start: string; end: string | null; basis: RepDocument; termination: RepDocument | null;
   end_reason: string | null; version: number;
+  /** Đ2-05: where the term stands with the verification (the long-standing terms were verified when declared). */
+  verification: "UNVERIFIED" | "VERIFIED" | "REJECTED";
 }
 const rep = (id: string, full_name: string, type: RepType, title: string, start: string, basis: [string, string, string],
   extra: Partial<Rep> = {}): Rep => ({ id, full_name, person: null, type, title, scope: null, start, end: null,
-  basis: { type: basis[0], number: basis[1], date: basis[2] }, termination: null, end_reason: null, version: 1, ...extra });
+  basis: { type: basis[0], number: basis[1], date: basis[2] }, termination: null, end_reason: null, version: 1,
+  verification: "VERIFIED", ...extra });
 const REPRESENTATIVES: Record<string, () => Rep[]> = {
   [HA_DONG.id]: () => [
     rep("rep-hd-1", "Nguyễn Văn An", "LEGAL_REPRESENTATIVE", "Giám đốc", "2025-03-10", ["BUSINESS_REGISTRATION_CERTIFICATE", "0109876543", "2023-05-16"],
       { person: { id: "person-an", full_name: "Nguyễn Văn An" } }),
     rep("rep-hd-2", "Trần Thị Mai", "LEGAL_REPRESENTATIVE", "Chủ tịch Hội đồng thành viên", "2025-03-10", ["COMPANY_CHARTER", "01/2023/ĐL-HĐTV", "2023-05-10"]),
     rep("rep-hd-3", "Lê Hoàng Phúc", "AUTHORIZED_REPRESENTATIVE", "Trưởng phòng kinh doanh", "2026-01-05", ["POWER_OF_ATTORNEY", "05/2026/UQ", "2026-01-02"],
-      { scope: "Ký hợp đồng nhượng quyền, biên bản đối soát với SuperShip", end: "2026-10-31", person: { id: "person-phuc", full_name: "Lê Hoàng Phúc" } }),
+      { scope: "Ký hợp đồng nhượng quyền, biên bản đối soát với SuperShip", end: "2026-10-31", person: { id: "person-phuc", full_name: "Lê Hoàng Phúc" },
+        verification: "UNVERIFIED" }),
     rep("rep-hd-4", "Phạm Đức Thắng", "AUTHORIZED_REPRESENTATIVE", "Phó phòng kinh doanh", "2025-04-01", ["POWER_OF_ATTORNEY", "12/2025/UQ", "2025-03-28"],
       { scope: "Ký biên bản đối soát với SuperShip", end: "2025-12-31", end_reason: "Hết thời hạn ủy quyền" }),
     rep("rep-hd-5", "Đỗ Thị Hương", "AUTHORIZED_REPRESENTATIVE", "Kế toán trưởng", "2025-03-15", ["POWER_OF_ATTORNEY", "03/2025/UQ", "2025-03-14"],
       { scope: "Ký biên bản xác nhận công nợ với SuperShip", end: "2025-09-30",
-        termination: { type: "AUTHORIZATION_TERMINATION", number: "07/2025/CDUQ", date: "2025-09-30" } }),
+        termination: { type: "AUTHORIZATION_TERMINATION", number: "07/2025/CDUQ", date: "2025-09-30" }, verification: "UNVERIFIED" }),
   ],
   [GIA_LAM.id]: () => [
     rep("rep-gl-1", "Đỗ Minh Tuấn", "AUTHORIZED_REPRESENTATIVE", "Quản lý vận hành", "2025-12-01", ["POWER_OF_ATTORNEY", "01/2025/UQ", "2025-11-28"],
@@ -211,7 +235,7 @@ const REPRESENTATIVES: Record<string, () => Rep[]> = {
   ],
   [DONG_ANH.id]: () => [
     rep("rep-da-1", "Ngô Thanh Hà", "AUTHORIZED_REPRESENTATIVE", "Phó Giám đốc", "2025-06-10", ["POWER_OF_ATTORNEY", "02/2025/UQ", "2025-06-09"],
-      { scope: "Ký hợp đồng, biên bản đối soát với SuperShip" }),
+      { scope: "Ký hợp đồng, biên bản đối soát với SuperShip", verification: "UNVERIFIED" }),
     rep("rep-da-2", "Bùi Quang Huy", "LEGAL_REPRESENTATIVE", "Giám đốc", "2025-06-02", ["BUSINESS_REGISTRATION_CERTIFICATE", "0110456789", "2024-04-22"],
       { end: "2026-09-30", termination: { type: "DISMISSAL_DECISION", number: "08/2026/QĐ-HĐQT", date: "2026-09-30" } }),
   ],
@@ -237,9 +261,13 @@ export interface UnitSetup {
   suspended: string[];
   /** Server answers to the next matching writes, in order, before the code is asked. */
   rejections: Rejection[];
+  /** GET /v1/document-uploads/settings: an uploaded registration certificate is read (on for "Pháp lý"). */
+  reading: boolean;
 }
 export interface UnitMock extends UnitSetup {
   legal: Record<string, LegalRow[]>;
+  /** Change requests of the legal profile ("Sửa" of verified details, "Thay chủ thể"), oldest first. */
+  requests: Record<string, ChangeRequest[]>;
   reps: Record<string, Rep[]>;
   /** Writes the server accepted (after the code). */
   writes: number;
@@ -254,9 +282,9 @@ export function unitFlow(section: FranchiseSection, prefix: string, { id, name, 
   return defineFlow({
     id: `${prefix}${id}`, name, app: "superplatform", group: franchiseGroup(section),
     async run(ctx) {
-      const base: UnitSetup = { role: "admin", haDong: "UNVERIFIED", suspended: [], rejections: [], ...setup };
+      const base: UnitSetup = { role: "admin", haDong: "UNVERIFIED", suspended: [], rejections: [], reading: false, ...setup };
       const mock: UnitMock = {
-        ...base, writes: 0, input: null,
+        ...base, writes: 0, input: null, requests: {},
         legal: Object.fromEntries(Object.entries(LEGAL_ROWS).map(([org, rows]) => [org, rows(base.haDong)])),
         reps: Object.fromEntries(Object.entries(REPRESENTATIVES).map(([org, rows]) => [org, rows()])),
       };
@@ -266,7 +294,8 @@ export function unitFlow(section: FranchiseSection, prefix: string, { id, name, 
   });
 }
 
-export const legalFlow = (flow: Parameters<typeof unitFlow>[2]) => unitFlow("phap-ly", "superplatform-phap-ly-", flow);
+export const legalFlow = (flow: Parameters<typeof unitFlow>[2]) =>
+  unitFlow("phap-ly", "superplatform-phap-ly-", { ...flow, setup: { reading: true, ...flow.setup } });
 
 /* ---- Presenting ---- */
 
@@ -279,7 +308,8 @@ function day(value: string | null): string {
   return `${pad(local.getUTCDate())}/${pad(local.getUTCMonth() + 1)}/${local.getUTCFullYear()}`;
 }
 const addDays = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86400_000).toISOString().slice(0, 10);
-const masked = (row: LegalRow) => row.legal_form === "ENTERPRISE" ? row.number : `********${row.number.slice(-4)}`;
+/** The number as the screens show it: in full, a personal identification number too (23/10/2026). */
+const masked = (row: LegalRow) => row.number;
 const regionOf = (address: LegalRow["address"]) => {
   const province = PROVINCES.find(p => p.code === address.province_code);
   const found = WARDS[address.province_code]?.find(w => w.code === address.ward_code);
@@ -292,7 +322,7 @@ function addressDisplay(address: LegalRow["address"]) {
 function verificationText(row: LegalRow) {
   const v = row.verification;
   if (v.status === "UNVERIFIED") return `Chưa xác minh. Đang chờ Quản trị hệ thống đối chiếu từ ngày ${day(row.valid_from)}.`;
-  if (v.status === "REJECTED") return `Bị từ chối ngày ${day(v.at)}. Hãy sửa lại thông tin.`;
+  if (v.status === "REJECTED") return `Từ chối xác minh ngày ${day(v.at)}.`;
   let text = `Đã xác minh ngày ${v.checked ? day(v.checked) : day(v.at)}`;
   if (v.source) text += `, đối chiếu ${SOURCES[v.source]![1]}`;
   if (v.by) text += `, người xác minh: ${v.by}`;
@@ -304,16 +334,17 @@ function presentCurrent(row: LegalRow) {
     id: row.id, version: row.version, legal_form: row.legal_form, legal_form_name: LEGAL_FORMS[row.legal_form],
     enterprise_type: row.enterprise_type, enterprise_type_name: row.enterprise_type ? ENTERPRISE_TYPES[row.enterprise_type] : null,
     registered_name: row.registered_name, registration_number_display: masked(row), household_owner_name: row.household_owner_name,
-    certificate: row.legal_form === "INDIVIDUAL" ? null : row.certificate,
+    private_owner_name: null, certificate: row.legal_form === "INDIVIDUAL" ? null : row.certificate,
     registered_address: { province_code: province?.code ?? null, province_name: province?.name ?? null, ward_code: found?.code ?? null,
       ward_name: found?.name ?? null, address_line: row.address.address_line, display: addressDisplay(row.address) },
     head_office_phone: row.head_office_phone, head_office_email: row.head_office_email, invoice_email: row.invoice_email,
-    registration_document: { present: Boolean(row.document), media_type: row.document ? "application/pdf" : null },
+    registration_document: { present: Boolean(row.document), media_type: row.document ? row.document_type ?? "application/pdf" : null },
     valid_from: row.valid_from, subject_started_on: row.subject_started_on, origin: row.origin,
     declared_by: { full_name: row.by }, declared_at: row.valid_from,
     verification: { status: row.verification.status, text: verificationText(row), verified_at: row.verification.at,
       verified_by_name: row.verification.by, source: row.verification.source,
-      source_name: row.verification.source ? SOURCES[row.verification.source]![0] : null, checked_on: row.verification.checked },
+      source_name: row.verification.source ? SOURCES[row.verification.source]![0] : null, checked_on: row.verification.checked,
+      rejection_reason: row.verification.reason },
   };
 }
 
@@ -390,6 +421,105 @@ function rowFrom(input: any, previous: LegalRow | null, extra: Partial<LegalRow>
   };
 }
 
+/* ---- Change requests (LegalChangeRequestRecord, LegalProfilePresenter.changeRequest) ---- */
+
+const KINDS = { AMENDMENT: "Sửa", REPLACEMENT: "Thay chủ thể" } as const;
+const REQUEST_STATUSES = { PENDING: "Chờ xác minh", APPROVED: "Đã xác minh", REJECTED: "Từ chối xác minh", WITHDRAWN: "Đã rút" } as const;
+interface ChangeRequest {
+  id: string; version: number; kind: keyof typeof KINDS; status: keyof typeof REQUEST_STATUSES; by: string; at: string;
+  /** The current row it was sent over, and the row it proposes. */
+  base: LegalRow; proposed: LegalRow; documentChanged: boolean;
+  replacement: { effective_on: string; type: string | null; number: string | null; date: string | null; ending: string[] } | null;
+  decidedBy: string | null; decidedAt: string | null; source: string | null; checked: string | null; reason: string | null;
+}
+function presentRequest(request: ChangeRequest) {
+  const row = request.proposed;
+  const { province, ward: found } = regionOf(row.address);
+  const r = request.replacement;
+  return {
+    id: request.id, version: request.version, kind: request.kind, kind_name: KINDS[request.kind], status: request.status,
+    status_name: REQUEST_STATUSES[request.status], requested_by: { full_name: request.by }, requested_at: request.at, base_profile_id: request.base.id,
+    proposed: {
+      legal_form: row.legal_form, legal_form_name: LEGAL_FORMS[row.legal_form], enterprise_type: row.enterprise_type,
+      enterprise_type_name: row.enterprise_type ? ENTERPRISE_TYPES[row.enterprise_type] : null, registered_name: row.registered_name,
+      registration_number_display: masked(row), household_owner_name: row.household_owner_name, private_owner_name: null,
+      certificate: row.legal_form === "INDIVIDUAL" ? null : row.certificate,
+      registered_address: { province_code: province?.code ?? null, province_name: province?.name ?? null, ward_code: found?.code ?? null,
+        ward_name: found?.name ?? null, address_line: row.address.address_line, display: addressDisplay(row.address) },
+      head_office_phone: row.head_office_phone, head_office_email: row.head_office_email, invoice_email: row.invoice_email,
+      registration_document: { present: Boolean(row.document), media_type: row.document ? row.document_type ?? "application/pdf" : null },
+      document_changed: request.documentChanged,
+    },
+    changes: changes(request.base, row),
+    replacement: r ? { effective_on: r.effective_on, basis_document_type: r.type, basis_document_type_name: r.type ? REPLACEMENT_BASIS[r.type] ?? null : null,
+      basis_document_number: r.number, basis_document_date: r.date, representatives_to_end: r.ending } : null,
+    decided_by: request.decidedBy ? { full_name: request.decidedBy } : null, decided_at: request.decidedAt,
+    verification_source: request.source, verification_source_name: request.source ? SOURCES[request.source]![0] : null,
+    verification_checked_on: request.checked, rejection_reason: request.reason,
+  };
+}
+
+/* ---- "Lý do thao tác" of a rejection (V1430__common_action_reasons.sql, VERIFICATION_REJECT) ---- */
+
+const REJECT_REASONS = [
+  ["GIAY_TO_KHONG_RO", "Giấy tờ không rõ"], ["THONG_TIN_KHONG_KHOP_GIAY_TO", "Thông tin không khớp giấy tờ"],
+  ["GIAY_TO_HET_HIEU_LUC", "Giấy tờ hết hiệu lực"], ["THIEU_GIAY_TO", "Thiếu giấy tờ"], ["OTHER", "Khác"],
+].map(([code, name]) => ({ code: code!, name: name!, note_required: code === "OTHER" }));
+/** What the server keeps for the chosen reason: its name, or "Khác: <words>". */
+function reasonText(body: any): string | null {
+  const chosen = REJECT_REASONS.find(item => item.code === body?.reason_code);
+  if (!chosen) return typeof body?.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
+  return chosen.note_required ? `${chosen.name}: ${String(body.reason_note ?? "").trim()}` : chosen.name;
+}
+
+/* ---- Registration certificates: the files the flows upload and what their reading gives ---- */
+
+const PAPERS = path.join(import.meta.dirname, "assets", "legal-papers");
+/** Sample certificates drawn like mau-giay-dang-ky-ocr (fictitious data, "BẢN MẪU KIỂM THỬ" watermark). */
+export const PAPER = {
+  longBien: "giay-chung-nhan-dkdn-giao-van-long-bien.pdf",
+  giaLam: "giay-chung-nhan-dkdn-van-chuyen-gia-lam.pdf",
+  haDong: "giay-chung-nhan-dkdn-van-chuyen-ha-dong-thay-doi-lan-2.pdf",
+  meLinh: "giay-chung-nhan-dkhkd-van-chuyen-me-linh.png",
+} as const;
+/** A certificate as setInputFiles takes it. */
+export function paperFile(name: string) {
+  return { name, mimeType: name.endsWith(".pdf") ? "application/pdf" : "image/png", buffer: readFileSync(path.join(PAPERS, name)) };
+}
+type Reading = { source: "PDF_TEXT" | "OCR" | "NONE"; fields: Record<string, { value: string; confidence: number }>; warnings: string[] };
+/** RegistrationCertificateReader: 0.9 labelled, 0.6 guessed (the street, the issuer's full name); below 0.8 asks "Kiểm tra lại". */
+const read = (fields: Record<string, [string, number]>): Reading =>
+  ({ source: "PDF_TEXT", fields: Object.fromEntries(Object.entries(fields).map(([key, [value, confidence]]) => [key, { value, confidence }])), warnings: [] });
+const READINGS: Record<string, Reading> = {
+  [PAPER.longBien]: read({
+    legal_form: ["ENTERPRISE", 0.9], enterprise_type: ["LLC_ONE_MEMBER", 0.9], registered_name: ["CÔNG TY TNHH GIAO VẬN LONG BIÊN", 0.9],
+    registration_number: ["0108765432", 0.9], certificate_number: ["0108765432", 0.9], certificate_issued_on: ["2024-05-20", 0.9],
+    certificate_issuer: ["Phòng Đăng ký kinh doanh - Sở Tài chính Thành phố Hà Nội", 0.6],
+    address_line: ["Số 120 đường Nguyễn Văn Cừ, Phường Bồ Đề, Thành phố Hà Nội, Việt Nam", 0.6],
+    address_province_code: ["P01", 0.9], address_ward_code: [ward("Phường Bồ Đề").code, 0.9],
+    head_office_phone: ["02438725566", 0.9], head_office_email: ["lienhe@giaovanlongbien.vn", 0.9],
+  }),
+  [PAPER.giaLam]: read({
+    legal_form: ["ENTERPRISE", 0.9], enterprise_type: ["LLC_ONE_MEMBER", 0.9], registered_name: ["CÔNG TY TNHH VẬN CHUYỂN GIA LÂM", 0.9],
+    registration_number: ["0110234567", 0.9], certificate_number: ["0110234567", 0.9], certificate_issued_on: ["2026-09-18", 0.9],
+    certificate_issuer: ["Phòng Đăng ký kinh doanh - Sở Tài chính Thành phố Hà Nội", 0.6],
+    address_line: ["Số 46 đường Cổ Bi, Xã Gia Lâm, Thành phố Hà Nội, Việt Nam", 0.6],
+    address_province_code: ["P01", 0.9], address_ward_code: [ward("Xã Gia Lâm").code, 0.9],
+    head_office_phone: ["02436782468", 0.9], head_office_email: ["lienhe@vanchuyengialam.vn", 0.9],
+  }),
+  [PAPER.haDong]: read({
+    legal_form: ["ENTERPRISE", 0.9], enterprise_type: ["LLC_MULTI_MEMBER", 0.9], registered_name: ["CÔNG TY TNHH VẬN CHUYỂN HÀ ĐÔNG", 0.9],
+    registration_number: ["0109876543", 0.9], certificate_number: ["0109876543", 0.9], certificate_issued_on: ["2023-05-16", 0.9],
+    certificate_issuer: ["Phòng Đăng ký kinh doanh - Sở Tài chính Thành phố Hà Nội", 0.6],
+    latest_amendment_number: ["2", 0.9], latest_amendment_on: ["2026-09-05", 0.9],
+    address_line: ["Số 8 đường Tố Hữu, Phường Hà Đông, Thành phố Hà Nội, Việt Nam", 0.6],
+    address_province_code: ["P01", 0.9], address_ward_code: [ward("Phường Hà Đông").code, 0.9],
+    head_office_phone: ["02433556789", 0.9], head_office_email: ["lienhe@vanchuyenhadong.vn", 0.9],
+  }),
+};
+/** The stored certificate of a unit, as GET …/registration-document sends it. */
+const STORED_PAPERS: Record<string, string> = { [HA_DONG.id]: PAPER.haDong, [ME_LINH.id]: PAPER.meLinh };
+
 /* ---- Representatives presenting ---- */
 
 const activeRep = (r: Rep) => r.start <= TODAY && (!r.end || r.end >= TODAY);
@@ -451,14 +581,23 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
       revision: "capture", generated_at: NOW, expires_at: "2026-10-13T02:00:00.000Z",
     });
 
-    /* ---- "Tệp căn cứ" of a representative, attached on upload (DocumentUploadController, no reading) ---- */
-    if (path === "/v1/document-uploads/settings") return send({ reading: false });
+    /*
+     * DocumentUploadController: the registration certificate of "Pháp lý" is read on upload (canned readings by file
+     * name); the "Tệp căn cứ" of a representative is only attached (the "Người đại diện" flows keep the reading off).
+     */
+    if (path === "/v1/document-uploads/settings") return send({ reading: mock.reading }, 200, "Cấu hình nhận diện tệp.");
     if (path === "/v1/document-uploads" && method === "POST") {
       const body = request.postDataBuffer()?.toString("latin1") ?? "";
       const fileName = Buffer.from(body.match(/filename="([^"]+)"/)?.[1] ?? "", "latin1").toString("utf8");
-      return send({ file_token: `basis-${fileName}`, file_name: fileName, media_type: "application/pdf", size: body.length,
-        expires_at: "2026-10-13T02:00:00.000Z", reading: null }, 200, "Đã tải tệp lên.");
+      const mediaType = fileName.endsWith(".pdf") ? "application/pdf" : fileName.endsWith(".png") ? "image/png" : "image/jpeg";
+      const reading = !mock.reading ? null : READINGS[fileName] ?? { source: "NONE", fields: {}, warnings: [] };
+      return send({ file_token: `upload-${fileName}`, file_name: fileName, media_type: mediaType, size: body.length,
+        expires_at: "2026-10-13T02:00:00.000Z", reading }, 200,
+        !reading ? "Đã tải tệp lên." : Object.keys(reading.fields).length ? "Đã nhận diện, hãy kiểm tra lại thông tin." : "Chưa đọc được thông tin trong tệp, hãy nhập tay.");
     }
+    if (/^\/v1\/document-uploads\/[^/]+\/reading$/.test(path))
+      return send({ source: "NONE", fields: {}, warnings: ["OCR_UNAVAILABLE"] }, 200, "Chưa đọc được thông tin trong tệp, hãy nhập tay.");
+    if (path === "/v1/reasons/VERIFICATION_REJECT") return send({ function_code: "VERIFICATION_REJECT", reasons: REJECT_REASONS });
 
     /* ---- Shell ---- */
     if (path === "/v1/me/employee-invitations/count") return send({ pending: 0 });
@@ -479,6 +618,17 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
     }
 
     /* ---- Admin pages of an internal unit ---- */
+    // "Địa điểm phục vụ" of Bưu cục Yên Nghĩa on its overview (AdminServiceWards).
+    if (/^\/v1\/admin\/organizations\/[^/]+\/service-wards$/.test(path) && method === "GET") {
+      const id = path.split("/")[4]!;
+      const names = id === YEN_NGHIA.id ? ["Phường Yên Nghĩa", "Phường Dương Nội", "Phường Kiến Hưng"] : [];
+      return send({ organization_id: id, total: names.length, reminder: names.length ? null : "Chưa có địa điểm phục vụ",
+        wards: names.map(ward_name => ({ province_code: "P01", province_name: "Thành phố Hà Nội", district_code: null, district_name: null,
+          ward_code: ward(ward_name).code, ward_name, since: "2025-04-01", also_served_by: [] })),
+        actions: { edit: { available: false, enabled: false, disabled_reason: null }, history: { available: true, enabled: true, disabled_reason: null } } });
+    }
+    // The overview asks for the unit's addresses only for their reminders: none here.
+    if (/^\/v1\/admin\/organizations\/[^/]+\/addresses$/.test(path) && method === "GET") return send({ items: [], version: 1, actions: {} });
     const adminMatch = path.match(/^\/v1\/admin\/organizations\/([^/]+)\/(profile|status|operation-model)$/);
     if (adminMatch && method === "GET") {
       const unit = UNITS.find(item => item.id === adminMatch[1]);
@@ -496,9 +646,10 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
         ...(unit.type_code === "POST_OFFICE" ? [] : [["WEBSITE", "Website", unit.website] as [string, string, string | null]])];
       return send({
         id: unit.id, code: unit.code, name: unit.name, logo_url: null, type_code: unit.type_code, type_name: unit.type_name,
-        status: status(unit), status_name: statusName(unit), operation_start_date: unit.start, created_at: unit.created_at, version: 1,
+        status: status(unit), status_name: statusName(unit), operation_start_date: day(unit.start), operation_start_date_value: unit.start,
+        created_at: day(unit.created_at), version: 1,
         parent: unit.parent, created_by: unit.creator ? { full_name: unit.creator, organization_name: CORP.name } : null,
-        operation_model: unit.model ?? null,
+        operation_model: unit.model ? { ...unit.model, since: day(unit.model.since) } : null,
         legal: legal ? { declared: true, via_franchise_name: unit.type_code === "POST_OFFICE" ? unit.parent!.name : null,
           legal_form_name: LEGAL_FORMS[legal.legal_form], enterprise_type_name: legal.enterprise_type ? ENTERPRISE_TYPES[legal.enterprise_type] : null,
           registered_name: legal.registered_name, registration_number_display: masked(legal), verification_status: legal.verification.status,
@@ -508,7 +659,8 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
             enterprise_type_name: null, registered_name: null, registration_number_display: null, verification_status: null,
             verification_status_name: null, registered_address: null, invoice_email: null },
         legal_representatives: unit.type_code === "POST_OFFICE" ? null
-          : (mock.reps[unit.id] ?? []).filter(r => r.type === "LEGAL_REPRESENTATIVE" && activeRep(r)).map(r => ({ full_name: r.full_name, position_title: r.title })),
+          : (mock.reps[unit.id] ?? []).filter(r => r.type === "LEGAL_REPRESENTATIVE" && activeRep(r)).map(r => ({ full_name: r.full_name, position_title: r.title,
+            verification_status: r.verification, verification_status_name: r.verification === "VERIFIED" ? "Đã xác minh" : "Chờ xác minh" })),
         contacts: contacts.map(([type, type_name, value]) => ({ type, type_name, value: value ?? "Chưa có", missing: !value })),
         addresses: [unit.type_code === "POST_OFFICE" ? ["SERVICE_POINT", "Địa chỉ điểm phục vụ"] : ["TRANSACTION_OFFICE", "Văn phòng giao dịch"]]
           .map(([type, type_name]) => ({ type, type_name, value: unit.office ?? "Chưa có", missing: !unit.office })),
@@ -518,37 +670,74 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
     }
 
     /* ---- Legal profile ---- */
-    const legalMatch = path.match(/^\/v1\/organizations\/([^/]+)\/legal-profile(?:\/(options|history)|\/([^/]+)\/(amendment|replacement|identity-number|verification|registration-document))?$/);
+    const legalMatch = path.match(/^\/v1\/organizations\/([^/]+)\/legal-profile(?:\/(options|history|change-requests)|\/change-requests\/([^/]+)\/(verification|withdrawal)|\/([^/]+)\/(amendment|replacement|verification|registration-document))?$/);
     if (legalMatch) {
-      const [, orgId, list, profileId, action] = legalMatch;
+      const [, orgId, list, requestId, requestAction, profileId, action] = legalMatch;
       const unit = UNITS.find(item => item.id === orgId);
       if (!unit) return fail(404, "ORGANIZATION_NOT_FOUND", "Không tìm thấy đơn vị.");
       if (unit.type_code === "POST_OFFICE") return fail(409, "LEGAL_PROFILE_NOT_APPLICABLE", `Bưu cục dùng thông tin pháp lý của ${unit.parent!.name}, không khai báo riêng.`);
       const rows = mock.legal[unit.id] ??= [];
+      const requests = mock.requests[unit.id] ??= [];
       const current = currentRow(unit.id);
+      const pending = requests.find(item => item.status === "PENDING") ?? null;
       const active = status(unit) === "ACTIVE";
       const blocked = (reason: string) => ({ available: true, enabled: false, disabled_reason: reason });
       const allowed = { available: true, enabled: true, disabled_reason: null };
       const unavailable = { available: false, enabled: false, disabled_reason: null };
       const NOT_DECLARED = "Đơn vị chưa khai báo thông tin pháp lý.";
+      const verifiedBy = (source: string, checked: string): Verification => ({ status: "VERIFIED", at: NOW, by: ADMIN, source, checked, reason: null });
+      /** The source and day a system administrator names for a change taking effect at once (P25). */
+      const checkedOf = async (body: any) => {
+        if (!SOURCES[body.verification_source]) { await fail(400, "ORGANIZATION_INPUT_INVALID", MESSAGES.sourceRequired, { verification_source: MESSAGES.sourceRequired }); return null; }
+        return { source: body.verification_source as string, checked: (body.checked_on as string | undefined) ?? TODAY };
+      };
+      /** A change request made the current profile, verified (by "Xác minh", or at once for a system administrator). */
+      const approve = (request: ChangeRequest, source: string, checked: string) => {
+        const base = currentRow(unit.id)!;
+        const next: LegalRow = { ...request.proposed, version: base.version + 1, valid_from: NOW, verification: verifiedBy(source, checked) };
+        base.valid_to = NOW; rows.push(next);
+        Object.assign(request, { status: "APPROVED", decidedBy: ADMIN, decidedAt: NOW, source, checked, version: request.version + 1 });
+        const ended: string[] = [];
+        if (request.replacement) for (const r of mock.reps[unit.id] ?? []) {
+          if (!activeRep(r)) continue;
+          const last = addDays(request.replacement.effective_on, -1);
+          r.end = last < r.start ? r.start : last; r.end_reason = "Thay chủ thể pháp lý"; r.version++; ended.push(r.full_name);
+        }
+        return { next, ended };
+      };
+      const sendRequest = (kind: ChangeRequest["kind"], base: LegalRow, proposed: LegalRow, documentChanged: boolean,
+        replacement: ChangeRequest["replacement"]): ChangeRequest => {
+        const request: ChangeRequest = { id: `request-${unit.id}-${requests.length + 1}`, version: 1, kind, status: "PENDING", by: ADMIN, at: NOW,
+          base, proposed, documentChanged, replacement, decidedBy: null, decidedAt: null, source: null, checked: null, reason: null };
+        requests.push(request);
+        return request;
+      };
 
-      if (!list && !action && method === "GET") {
-        const change = !current ? blocked(NOT_DECLARED) : !active ? blocked(MESSAGES.notActive(unit.name)) : allowed;
+      if (!list && !profileId && !requestId && method === "GET") {
+        const change = !current ? blocked(NOT_DECLARED) : !active ? blocked(MESSAGES.notActive(unit.name)) : pending ? blocked(MESSAGES.changePending) : allowed;
+        const target = pending ? { kind: "LEGAL_CHANGE_REQUEST", id: pending.id, version: pending.version }
+          : current?.verification.status === "UNVERIFIED" ? { kind: "LEGAL_PROFILE", id: current.id, version: current.version } : null;
         const decide = !admin ? unavailable : !current ? blocked(NOT_DECLARED) : !active ? blocked(MESSAGES.notActive(unit.name))
-          : current.verification.status === "VERIFIED" ? blocked("Thông tin pháp lý đã được xác minh.")
-          : current.verification.status === "REJECTED" ? blocked("Thông tin pháp lý đã bị từ chối xác minh. Hãy sửa lại thông tin.") : allowed;
+          : target ? allowed
+          : current.verification.status === "REJECTED" ? blocked("Thông tin pháp lý đã bị từ chối xác minh. Hãy sửa lại thông tin.")
+          : blocked("Thông tin pháp lý đã được xác minh.");
+        const latest = requests.at(-1);
         return send({
           organization_id: unit.id, declared: Boolean(current), current: current ? presentCurrent(current) : null,
           notice: current ? null : NOT_DECLARED, duplicate_warning: null,
           actions: {
             declare: current ? blocked("Đơn vị đã có thông tin pháp lý. Hãy dùng Sửa hoặc Thay chủ thể.") : !active ? blocked(MESSAGES.notActive(unit.name)) : allowed,
             amend: change, replace: change,
-            view_identity_number: !admin ? unavailable : !current ? blocked(NOT_DECLARED)
-              : current.legal_form === "ENTERPRISE" ? blocked("Thông tin pháp lý này không có số định danh cá nhân.") : allowed,
             view_document: !admin ? unavailable : !current ? blocked(NOT_DECLARED) : !current.document ? blocked("Chưa có tệp giấy đăng ký.") : allowed,
             verify: decide, reject: decide, history: rows.length ? allowed : blocked("Chưa có lịch sử."),
+            withdraw_request: !pending ? unavailable : !active ? blocked(MESSAGES.notActive(unit.name)) : allowed,
           },
-        });
+          pending_request: pending ? presentRequest(pending) : null,
+          last_rejection: !pending && latest?.status === "REJECTED" ? { request_id: latest.id, kind: latest.kind, kind_name: KINDS[latest.kind],
+            reason: latest.reason, rejected_at: latest.decidedAt, rejected_by: { full_name: latest.decidedBy } } : null,
+          verification_target: admin ? target : null,
+          skips_verification: admin,
+        }, 200, "Thông tin pháp lý.");
       }
       if (list === "options") return send({
         legal_forms: Object.entries(LEGAL_FORMS).map(([code, name]) => ({ code, name })), enterprise_types: choices(ENTERPRISE_TYPES),
@@ -559,8 +748,17 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
         const items = rows.map((_, index) => historyItem(rows, index)).reverse();
         return send({ items, page: 0, size: 20, total: items.length });
       }
+      if (list === "change-requests") {
+        const items = requests.slice().reverse().map(request => {
+          const shown = presentRequest(request);
+          return { id: shown.id, kind: shown.kind, kind_name: shown.kind_name, status: shown.status, status_name: shown.status_name,
+            requested_by: shown.requested_by, requested_at: shown.requested_at, changes: shown.changes, rejection_reason: shown.rejection_reason,
+            decided_by: shown.decided_by, decided_at: shown.decided_at };
+        });
+        return send({ items, page: 0, size: 20, total: items.length });
+      }
 
-      if (method === "POST" && !action) {
+      if (method === "POST" && !list && !profileId && !requestId) {
         if (!active) return fail(409, "ORGANIZATION_NOT_ACTIVE", MESSAGES.notActive(unit.name));
         const refused = rejection();
         if (refused) return fail(refused.status, refused.code, refused.message, refused.fields);
@@ -582,62 +780,103 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
         const document = multipartNames(request).includes("registration_document");
         if (action === "amendment") {
           const next = rowFrom(body.legal, current, { id: `${current.id}-a${rows.length}`, origin: "AMENDED", version: current.version + 1,
-            document: document ? `doc-new-${rows.length}` : current.document, number: current.number, legal_form: current.legal_form });
+            document: document ? `doc-new-${rows.length}` : current.document, document_type: document ? "application/pdf" : current.document_type,
+            number: current.number, legal_form: current.legal_form });
           const changed = changes(current, next);
           if (changed.some(item => NEEDS_AMENDMENT.has(item.field)) && (!next.certificate?.latest_amendment_number || !next.certificate.latest_amendment_on)) {
             return fail(400, "ORGANIZATION_INPUT_INVALID", "Hãy nhập lần đăng ký thay đổi và ngày.", { "legal.latest_amendment_number": "Hãy nhập lần đăng ký thay đổi và ngày." });
           }
           if (!changed.length) return fail(409, "LEGAL_PROFILE_UNCHANGED", MESSAGES.unchanged);
           const reverify = current.verification.status === "REJECTED" || changed.some(item => REVERIFY.has(item.field));
+          // P12: a verified profile stays in effect; a change of its registered details waits for a verification.
+          const waits = reverify && current.verification.status === "VERIFIED";
+          const checked = waits && admin ? await checkedOf(body) : null;
+          if (waits && admin && !checked) return;
+          if (pending) return fail(409, "LEGAL_CHANGE_PENDING", MESSAGES.changePending);
           if (!(await stepUp("LEGAL_ENTITY_AMEND", `Sửa thông tin pháp lý của ${unit.name}`))) return;
+          mock.writes++; mock.input = body;
+          if (checked) {
+            const sent = sendRequest("AMENDMENT", current, next, document, null);
+            const { next: approved } = approve(sent, checked.source, checked.checked);
+            return send({ id: approved.id, verification_status: "VERIFIED", version: approved.version, message: MESSAGES.saved,
+              ended_representatives: [], request_id: sent.id, pending: false }, 200, MESSAGES.saved);
+          }
+          if (waits) {
+            const sent = sendRequest("AMENDMENT", current, next, document, null);
+            return send({ id: current.id, verification_status: current.verification.status, version: current.version, message: MESSAGES.amendmentSent,
+              ended_representatives: [], request_id: sent.id, pending: true }, 200, MESSAGES.amendmentSent);
+          }
           if (!reverify) next.verification = { ...current.verification };
-          current.valid_to = NOW; rows.push(next); mock.writes++; mock.input = body;
+          current.valid_to = NOW; rows.push(next);
           const message = next.verification.status === "UNVERIFIED" ? MESSAGES.savedPending : MESSAGES.saved;
           return send({ id: next.id, verification_status: next.verification.status, version: next.version, message,
-            ended_representatives: [] }, 200, message);
+            ended_representatives: [], request_id: null, pending: false }, 200, message);
         }
         const number = String(body.legal?.registration_number ?? "").replace(/\D/g, "");
         if (number && number === current.number) {
           return fail(400, "ORGANIZATION_INPUT_INVALID", MESSAGES.sameNumber, { "legal.registration_number": MESSAGES.sameNumber });
         }
+        const checked = admin ? await checkedOf(body) : null;
+        if (admin && !checked) return;
+        if (pending) return fail(409, "LEGAL_CHANGE_PENDING", MESSAGES.changePending);
         if (!(await stepUp("LEGAL_ENTITY_REPLACE", `Thay chủ thể pháp lý của ${unit.name}`))) return;
         const next = rowFrom(body.legal, null, { id: `${unit.id}-r${rows.length}`, origin: "REPLACED", version: current.version + 1,
           document: document ? `doc-new-${rows.length}` : null, subject_started_on: body.effective_on,
           basis: body.basis_document_type ? { type: body.basis_document_type, number: body.basis_document_number ?? null, date: body.basis_document_date ?? null } : null });
-        current.valid_to = NOW; rows.push(next); mock.writes++; mock.input = body;
-        const ended: string[] = [];
-        for (const r of mock.reps[unit.id] ?? []) {
-          if (!activeRep(r)) continue;
-          r.end = addDays(body.effective_on, -1) < r.start ? r.start : addDays(body.effective_on, -1);
-          r.end_reason = "Thay chủ thể pháp lý"; r.version++; ended.push(r.full_name);
+        const ending = (mock.reps[unit.id] ?? []).filter(activeRep).map(r => `${r.full_name} (${REP_TYPES[r.type].toLowerCase()})`);
+        const sent = sendRequest("REPLACEMENT", current, next, document, { effective_on: body.effective_on, type: body.basis_document_type ?? null,
+          number: body.basis_document_number ?? null, date: body.basis_document_date ?? null, ending });
+        mock.writes++; mock.input = body;
+        if (checked) {
+          const { next: approved, ended } = approve(sent, checked.source, checked.checked);
+          return send({ id: approved.id, verification_status: "VERIFIED", version: approved.version, message: MESSAGES.replaced,
+            ended_representatives: ended, request_id: sent.id, pending: false }, 200, MESSAGES.replaced);
         }
-        const message = next.legal_form === "INDIVIDUAL" ? "Đã thay chủ thể pháp lý. Đang chờ Quản trị hệ thống xác minh." : MESSAGES.replaced;
-        return send({ id: next.id, verification_status: "UNVERIFIED", version: next.version, message,
-          ended_representatives: ended }, 200, message);
+        return send({ id: current.id, verification_status: current.verification.status, version: current.version, message: MESSAGES.replacementSent,
+          ended_representatives: [], request_id: sent.id, pending: true }, 200, MESSAGES.replacementSent);
       }
-      if (method === "POST" && action === "identity-number") {
+      if (method === "GET" && action === "registration-document") {
         const row = rows.find(item => item.id === profileId);
-        if (!row) return fail(404, "LEGAL_PROFILE_NOT_FOUND", "Không tìm thấy thông tin pháp lý.");
-        if (row.legal_form === "ENTERPRISE") return fail(409, "LEGAL_PROFILE_NO_IDENTITY_NUMBER", "Thông tin pháp lý này không có số định danh cá nhân.");
-        if (!(await stepUp("LEGAL_ENTITY_SENSITIVE_VIEW", `Xem số định danh cá nhân của ${unit.name}. Lần xem này được ghi nhật ký.`))) return;
-        mock.writes++;
-        return send({ registration_number: row.number, holder_name: row.household_owner_name ?? row.registered_name, shown_for_seconds: 60 }, 200, "Số định danh cá nhân.");
+        if (!row?.document) return fail(404, "LEGAL_DOCUMENT_NOT_FOUND", "Chưa có tệp giấy đăng ký.");
+        if (!(await stepUp("LEGAL_ENTITY_SENSITIVE_VIEW", `Xem giấy đăng ký của ${unit.name}. Lần xem này được ghi nhật ký.`))) return;
+        const file = paperFile(STORED_PAPERS[unit.id] ?? PAPER.haDong);
+        return route.fulfill({ status: 200, headers: { "X-Browser-Session-Version": "1", "Content-Type": file.mimeType, "Cache-Control": "no-store",
+          "Content-Disposition": `inline; filename="${file.name}"` }, body: file.buffer });
       }
-      if (method === "POST" && action === "verification") {
+      if (method === "POST" && (action === "verification" || requestAction === "verification")) {
         const body = request.postDataJSON();
         if (!active) return fail(409, "ORGANIZATION_NOT_ACTIVE", MESSAGES.notActive(unit.name));
         const refused = rejection();
         if (refused) return fail(refused.status, refused.code, refused.message, refused.fields);
+        const accepted = body.status === "VERIFIED";
+        const reason = accepted ? null : reasonText(body);
+        if (!accepted && !reason) return fail(400, "ORGANIZATION_INPUT_INVALID", "Hãy nhập lý do từ chối.", { reason: "Hãy nhập lý do từ chối." });
+        if (accepted && !SOURCES[body.source]) return fail(400, "ORGANIZATION_INPUT_INVALID", MESSAGES.sourceRequired, { source: MESSAGES.sourceRequired });
+        if (requestAction) {
+          const target = requests.find(item => item.id === requestId);
+          if (!target || target.status !== "PENDING") return fail(409, "LEGAL_CHANGE_REQUEST_NOT_PENDING", MESSAGES.requestNotPending);
+          const kindWords = target.kind === "REPLACEMENT" ? " yêu cầu thay chủ thể pháp lý của " : " yêu cầu sửa thông tin pháp lý của ";
+          if (!(await stepUp("LEGAL_ENTITY_VERIFY", `${accepted ? "Xác minh" : "Từ chối"}${kindWords}${unit.name}`))) return;
+          if (accepted) approve(target, body.source, body.checked_on ?? TODAY);
+          else Object.assign(target, { status: "REJECTED", decidedBy: ADMIN, decidedAt: NOW, reason, version: target.version + 1 });
+          mock.writes++; mock.input = body;
+          return send({ id: target.id, verification_status: accepted ? "VERIFIED" : "REJECTED", version: target.version }, 200, accepted ? MESSAGES.verified : MESSAGES.rejected);
+        }
         const row = rows.find(item => item.id === profileId);
         if (!row || row.valid_to !== null || row.verification.status !== "UNVERIFIED") return fail(409, "LEGAL_PROFILE_NOT_PENDING", MESSAGES.notPending);
         if (row.version !== body.version) return fail(409, "LEGAL_PROFILE_VERSION_CONFLICT", "Thông tin pháp lý vừa được sửa. Hãy tải lại rồi đối chiếu lại.");
-        const accepted = body.status === "VERIFIED";
-        if (accepted && !SOURCES[body.source]) return fail(400, "ORGANIZATION_INPUT_INVALID", "Hãy chọn nguồn đối chiếu.", { source: "Hãy chọn nguồn đối chiếu." });
         if (!(await stepUp("LEGAL_ENTITY_VERIFY", `${accepted ? "Xác minh" : "Từ chối xác minh"} thông tin pháp lý của ${unit.name}`))) return;
-        row.verification = accepted ? { status: "VERIFIED", at: NOW, by: ADMIN, source: body.source, checked: body.checked_on ?? TODAY }
-          : { status: "REJECTED", at: NOW, by: ADMIN, source: null, checked: null };
+        row.verification = accepted ? verifiedBy(body.source, body.checked_on ?? TODAY)
+          : { status: "REJECTED", at: NOW, by: ADMIN, source: null, checked: null, reason };
         row.version++; mock.writes++; mock.input = body;
         return send({ id: row.id, verification_status: row.verification.status, version: row.version }, 200, accepted ? MESSAGES.verified : MESSAGES.rejected);
+      }
+      if (method === "POST" && requestAction === "withdrawal") {
+        const target = requests.find(item => item.id === requestId);
+        if (!target || target.status !== "PENDING") return fail(409, "LEGAL_CHANGE_REQUEST_NOT_PENDING", MESSAGES.requestNotPending);
+        Object.assign(target, { status: "WITHDRAWN", decidedBy: ADMIN, decidedAt: NOW, version: target.version + 1 });
+        mock.writes++;
+        return send(presentRequest(target), 200, MESSAGES.withdrawn);
       }
     }
 
@@ -661,7 +900,14 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
           valid_from: `${addDays(r.start, -1)}T17:00:00Z`, valid_to: r.end ? `${r.end}T17:00:00Z` : null,
           status: live ? "ACTIVE" : "ENDED", status_name: live ? "Đang hiệu lực" : "Đã kết thúc",
           basis: repDoc(r.basis, BASIS_TYPES), termination_basis: repDoc(r.termination, TERMINATION_TYPES),
-          end_reason: live ? null : r.end_reason, version: r.version, actions: { update: action(r), terminate: action(r) },
+          end_reason: live ? null : r.end_reason, version: r.version,
+          actions: { update: action(r), terminate: action(r), verify: { available: false, enabled: false, disabled_reason: null } },
+          // RepresentativeVerificationStatus: an ended term never verified waits for nothing any more (endedLabel()).
+          verification_status: r.verification,
+          verification_status_name: r.verification === "VERIFIED" ? "Đã xác minh" : r.verification === "REJECTED" ? "Từ chối xác minh"
+            : live ? "Chờ xác minh" : "Chưa xác minh",
+          rejection_reason: null, verified_at: r.verification === "VERIFIED" ? `${r.start}T03:00:00Z` : null,
+          pending_change: null, last_rejection: null,
           has_basis_document: Boolean(r.basis),
         };
       };
@@ -703,7 +949,7 @@ async function mockUnits(page: Page, log: (line: string) => void, mock: UnitMock
         if (!(await stepUp("REPRESENTATIVE_APPOINT", `Bổ nhiệm người đại diện ${REP_TYPES[type].toLowerCase()} cho ${unit.name}`))) return;
         const created = rep(`rep-new-${reps.length + 1}`, String(body.full_name).trim(), type, body.position_title, body.start_date,
           [body.basis_document_type, body.basis_document_number, body.basis_document_date],
-          { scope: body.scope_of_authority ?? null, end: body.end_date ?? null, person: person(body.person_id) });
+          { scope: body.scope_of_authority ?? null, end: body.end_date ?? null, person: person(body.person_id), verification: "UNVERIFIED" });
         reps.push(created); mock.writes++; mock.input = body;
         return send({ organization_id: unit.id, representative: item(created), message: MESSAGES.appointed }, 201, MESSAGES.appointed);
       }
@@ -776,11 +1022,24 @@ function multipartNames(request: Request): string[] {
 
 export const unitUrl = (unit: Unit, section?: string) => `/workspace/organizations/${unit.id}${section ? `?section=${section}` : ""}`;
 export const legalHeading = (page: Page) => page.getByRole("heading", { name: "Thông tin pháp lý", exact: true });
-/** "Pháp lý" of a unit, loaded: the declared subject or the empty state. */
+/** "Pháp lý" of a unit, loaded: the declared subject (its "Đăng ký" card) or the empty state. */
 export async function openLegal(page: Page, unit: Unit) {
   await page.goto(unitUrl(unit, "legal-entities"));
+  await legalLoaded(page);
+}
+/** The legal section past its skeleton: the cards of the subject or "Chưa khai báo thông tin pháp lý". */
+export async function legalLoaded(page: Page) {
   await legalHeading(page).waitFor();
-  await page.locator(".legal-layout, :text('Chưa khai báo thông tin pháp lý')").first().waitFor();
+  const section = page.locator(".legal-page");
+  await section.locator(".legal-info-card").first().or(section.getByText("Chưa khai báo thông tin pháp lý", { exact: true })).first().waitFor();
+  await section.getByRole("status", { name: "Đang tải thông tin pháp lý" }).waitFor({ state: "detached" });
+}
+/** "Lịch sử thông tin pháp lý" (its own page now), past its skeleton. */
+export async function openHistory(page: Page) {
+  await legalButton(page, "Lịch sử").click();
+  await page.waitForURL("**/legal/history");
+  await page.getByRole("heading", { level: 1, name: "Lịch sử thông tin pháp lý", exact: true }).waitFor();
+  await page.locator(".legal-page ol > li").first().or(page.getByText("Chưa có lịch sử", { exact: true })).first().waitFor();
 }
 export async function openOverview(page: Page, unit: Unit) {
   await page.goto(unitUrl(unit));
@@ -789,6 +1048,9 @@ export async function openOverview(page: Page, unit: Unit) {
 }
 export const legalButton = (page: Page, label: string) => page.locator(".legal-page").getByRole("button", { name: label, exact: true });
 export const dialog = (page: Page, title: string) => page.getByRole("dialog", { name: title, exact: true });
+/** A dialog's confirm button: some now read "Xác nhận" instead of the action word. */
+export const confirmButton = (box: import("playwright").Locator, label: string) =>
+  box.getByRole("button", { name: new RegExp(`^(${label}|Xác nhận)$`) }).last();
 export const alertDialog = (page: Page, title: string) => page.getByRole("alertdialog", { name: title, exact: true });
 /**
  * Presses a button without moving the pointer: the dev "Figma" and log buttons of the app appear when the pointer
@@ -798,18 +1060,36 @@ export async function press(button: import("playwright").Locator) {
   await button.waitFor();
   await button.evaluate(node => (node as HTMLButtonElement).click());
 }
-/** "Sửa thông tin pháp lý" or "Thay chủ thể pháp lý" page of a unit, loaded. */
+/** "Sửa thông tin pháp lý" or "Thay chủ thể pháp lý" page of a unit, loaded (its form, past the skeleton). */
 export async function openEditPage(page: Page, unit: Unit, mode: "edit" | "replace") {
   await page.goto(`/workspace/organizations/${unit.id}/legal/${mode}`);
-  await page.getByRole("heading", { level: 1, name: mode === "edit" ? "Sửa thông tin pháp lý" : "Thay chủ thể pháp lý", exact: true }).waitFor();
-  await page.locator(".legal-editor-form").waitFor();
+  await editPageLoaded(page, mode);
 }
-export const formButton = (page: Page, label: string) => page.locator(".legal-editor-form").getByRole("button", { name: label, exact: true }).last();
-/** A one-page PDF standing in for the scanned registration certificate. */
-export const CERTIFICATE = { name: "giay-chung-nhan-dang-ky-doanh-nghiep.pdf", mimeType: "application/pdf",
-  // Padded to the size of a real scan so the picker shows a believable file size.
-  buffer: Buffer.concat([Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n"), Buffer.alloc(1_258_291, 0x20)]) };
+export async function editPageLoaded(page: Page, mode: "edit" | "replace") {
+  await page.getByRole("heading", { level: 1, name: mode === "edit" ? "Sửa thông tin pháp lý" : "Thay chủ thể pháp lý", exact: true }).waitFor();
+  await editForm(page).waitFor();
+}
+const editForm = (page: Page) => page.locator(".legal-change-page form");
+export const formButton = (page: Page, label: string) => editForm(page).getByRole("button", { name: label, exact: true }).last();
 export const HN_REGISTRY_NAME = HN_REGISTRY;
+
+/**
+ * Uploads a registration certificate into the "Giấy đăng ký" zone `key` ("registration_document" in the declare
+ * dialog, "legal.registration_document" on Sửa / Thay chủ thể) and waits for what its reading filled.
+ */
+export async function uploadPaper(page: Page, name: string, key = "registration_document") {
+  await field(page, key).setInputFiles(paperFile(name));
+  const panel = page.locator(`[data-field="${key}"]`);
+  await panel.getByText(READINGS[name] ? /^Đã điền \d+ thông tin$/ : /^Đã đính kèm$/).waitFor();
+}
+/** "Chọn hình thức pháp lý" (typing by hand, no certificate read), then the form's card. */
+export async function chooseLegalForm(page: Page, scope: import("playwright").Locator, form: string) {
+  await scope.getByRole("button", { name: "Chọn hình thức pháp lý", exact: true }).click();
+  await chooseFormCard(scope, form);
+}
+export async function chooseFormCard(scope: import("playwright").Locator, form: string) {
+  await scope.getByRole("radio", { name: form, exact: true }).check();
+}
 
 /* ---- Controls ---- */
 
@@ -819,6 +1099,11 @@ export async function pick(page: Page, id: string, option: string) {
   const searchTrigger = page.locator(`button[id="${id}"][aria-haspopup="listbox"]`);
   if (await searchTrigger.count()) return searchPick(page, id, option);
   const trigger = page.locator(`select[id="${id}"] + [role="combobox"]`);
+  // A plain native select (AdminSelect, e.g. "Nguồn đối chiếu" of the verify dialog): choose by its label.
+  if (!(await trigger.count()) && await page.locator(`select[id="${id}"]`).count()) {
+    await page.locator(`select[id="${id}"]`).selectOption({ label: option });
+    return;
+  }
   await expect(trigger).toBeEnabled();
   const target = page.locator(`[id="${id}-options-list"]`).getByRole("option", { name: option, exact: true });
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -827,6 +1112,11 @@ export async function pick(page: Page, id: string, option: string) {
   }
   await target.click();
   await expect(trigger).toContainText(option);
+}
+/** The Select inside `scope` (a dialog's reason list, whose id is generated): picks the option. */
+export async function pickIn(page: Page, scope: import("playwright").Locator, option: string) {
+  const id = await scope.locator("select").first().getAttribute("id");
+  await pick(page, id!, option);
 }
 /** A SearchSelect (a button opening a searchable list, e.g. "Tài khoản liên kết"): opens it and picks the option. */
 async function searchPick(page: Page, id: string, option: string) {

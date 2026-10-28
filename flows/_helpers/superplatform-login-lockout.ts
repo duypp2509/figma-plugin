@@ -5,8 +5,8 @@ import { capability } from "./supership-session";
 
 /*
  * "Chính sách bảo mật › Khóa đăng nhập" of the admin console: how many wrong passwords lock password sign-in from one
- * IP, and for how long. The stand-in keeps the policy, checks a change as the server does (bounds, reason, version,
- * then the step-up code bound to the values) and answers with the same sentences. Clock frozen by mockPin.
+ * IP, and for how long. The stand-in keeps the policy, checks a change as the server does (bounds, reason, then the
+ * step-up code bound to the values) and answers with the same sentences. Clock frozen by mockPin.
  */
 const AT = "2026-10-12T02:00:00.000Z";
 const LATER = "2026-10-12T02:05:00.000Z";
@@ -16,7 +16,6 @@ const LIMITS = { max_attempts_min: 3, max_attempts_max: 20, lockout_minutes_min:
 export const MESSAGES = {
   saved: "Đã lưu chính sách khóa đăng nhập.",
   wrongCode: "Mã xác thực không đúng hoặc đã được sử dụng.",
-  changed: "Chính sách vừa được người khác thay đổi. Hãy tải lại trước khi lưu.",
   attempts: "Số lần nhập sai từ 3 đến 20.",
   minutes: "Thời gian khóa từ 1 đến 1440 phút.",
 };
@@ -24,8 +23,6 @@ export const MESSAGES = {
 interface Policy { max_attempts: number; lockout_seconds: number; set_by_name: string | null; set_at: string | null; version: number }
 export interface LockoutMock {
   policy: Policy;
-  /** Someone else saves first: the next save carries an old version. */
-  changedElsewhere: boolean;
   writes: number;
 }
 interface LockoutContext extends FlowContext { mock: LockoutMock }
@@ -36,8 +33,7 @@ export function lockoutFlow(id: string, name: string, run: (ctx: LockoutContext)
     group: ["SUPERPLATFORM", "CHÍNH SÁCH KHÓA ĐĂNG NHẬP"],
     async run(ctx) {
       await mockPin(ctx.page, ctx.log, false);
-      const mock: LockoutMock = { policy: { max_attempts: 5, lockout_seconds: 900, set_by_name: null, set_at: null, version: 0, ...start },
-        changedElsewhere: false, writes: 0 };
+      const mock: LockoutMock = { policy: { max_attempts: 5, lockout_seconds: 900, set_by_name: null, set_at: null, version: 0, ...start }, writes: 0 };
       let challenges = 0;
       // Registered after mockPin, so it is asked first and falls back to it for the session calls.
       await ctx.context.route("**/api/**", async route => {
@@ -69,11 +65,6 @@ export function lockoutFlow(id: string, name: string, run: (ctx: LockoutContext)
         if (body.max_attempts < LIMITS.max_attempts_min || body.max_attempts > LIMITS.max_attempts_max) return invalid(MESSAGES.attempts);
         if (body.lockout_minutes < LIMITS.lockout_minutes_min || body.lockout_minutes > LIMITS.lockout_minutes_max) return invalid(MESSAGES.minutes);
         if (!String(body.reason ?? "").trim()) return invalid("Hãy nhập lý do thay đổi.");
-        if (mock.changedElsewhere) {
-          mock.policy = { max_attempts: 8, lockout_seconds: 1800, set_by_name: "Trần Minh Quân", set_at: AT, version: mock.policy.version + 1 };
-          mock.changedElsewhere = false;
-        }
-        if (body.version !== mock.policy.version) return send({ code: "LOGIN_LOCKOUT_POLICY_CHANGED" }, 409, MESSAGES.changed);
         const code = request.headers()["x-step-up-code"];
         if (!code) return send({ code: "STEP_UP_REQUIRED", challenge_id: `lockout-${++challenges}`, action: "LOGIN_LOCKOUT_CHANGE",
           summary: "Đổi chính sách khóa đăng nhập", method: "AUTHENTICATOR", expires_at: LATER }, 403,
