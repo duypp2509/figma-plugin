@@ -133,6 +133,8 @@ export interface PluginOptions {
   arrows: boolean;
   /** Fill each Section with the file's colour named "Section <level>" (the outermost takes layout.colorFrom, each one inside the next level). */
   colorSections: boolean;
+  /** When a run reaches its end, delete the frames of steps it no longer has instead of marking them. */
+  removeStale: boolean;
 }
 
 export type UiToSandbox =

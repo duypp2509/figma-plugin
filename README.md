@@ -226,7 +226,8 @@ Lệnh npm khác:
 | Kết nối | Chấm xanh: đã nối với server. Chấm đỏ "Chưa kết nối": chưa có server, plugin tự thử lại mỗi 2 giây; chỉ cần chạy `.\capture …` |
 | Luồng / Đã dựng | Luồng đang nhận và số bước đã dựng |
 | Lỗi / cảnh báo | Lỗi khi dựng, hoặc cảnh báo như không tìm thấy màu Section |
-| Ghi đè luồng cũ | Mặc định. Chạy lại thì thay ảnh trong frame có cùng `stepId`; bước mới được chèn đúng vị trí; bước không còn trong luồng được giữ ở cuối với tiền tố `⚠ không còn trong luồng` để bạn tự quyết định xóa |
+| Ghi đè luồng cũ | Mặc định. Chạy lại thì thay ảnh trong frame có cùng `stepId`; bước mới được chèn đúng vị trí; bước không còn trong luồng bị xóa, hoặc giữ ở cuối với tiền tố `⚠ không còn trong luồng` nếu bỏ chọn ô bên dưới |
+| Xóa bước không còn trong luồng | Mặc định bật. Luồng chạy trọn vẹn thì frame của bước không còn trong luồng bị xóa luôn; luồng hỏng giữa chừng không xóa gì. Bỏ chọn để chỉ gắn tiền tố `⚠ không còn trong luồng` |
 | Tạo section mới kèm thời gian | Luôn tạo Section mới tên `<tên luồng> · <ngày giờ>`, đặt dưới nội dung sẵn có. Dùng khi muốn giữ bản cũ để so sánh |
 | Vẽ mũi tên giữa các bước | Chỉ có tác dụng khi `layout.arrows` trong `capture.config.ts` cũng là `true` (mặc định đang `false`) |
 | Tô màu Section theo cấp | Xem [mục 6](#6-kết-quả-trên-figma) |

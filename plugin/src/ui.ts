@@ -19,7 +19,8 @@ let pendingStep: { message: StepMessage; tiles: Uint8Array[] } | null = null;
 
 function options(): PluginOptions {
   const mode = document.querySelector<HTMLInputElement>('input[name="mode"]:checked')?.value === "new" ? "new" : "overwrite";
-  return { mode, arrows: element<HTMLInputElement>("arrows").checked, colorSections: element<HTMLInputElement>("colors").checked };
+  return { mode, arrows: element<HTMLInputElement>("arrows").checked, colorSections: element<HTMLInputElement>("colors").checked,
+    removeStale: element<HTMLInputElement>("remove-stale").checked };
 }
 
 function toSandbox(message: UiToSandbox) {

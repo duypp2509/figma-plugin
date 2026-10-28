@@ -376,6 +376,7 @@ async function handleFlowEnd(end: FlowEnd) {
     let position = end.totalSteps;
     for (const frame of stepFrames(state.section)) {
       if (state.seen.has(frame.getPluginData(KEY.stepId))) continue;
+      if (state.options.removeStale) { frame.remove(); continue; }
       if (!frame.name.startsWith(STALE_PREFIX)) frame.name = STALE_PREFIX + frame.name;
       frame.setPluginData(KEY.stepIndex, String(position++));
     }
