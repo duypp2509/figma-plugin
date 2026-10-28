@@ -34,6 +34,7 @@ export default defineConfig({
     'role=button[name="Tự điền dữ liệu mẫu"]',
     // Dev sample face next to the camera (eKYC steps of SuperPlatform).
     'role=button[name="Khuôn mặt mẫu"]',
+    'role=button[name="Căn cước mẫu"]',
     // Next.js dev indicator.
     "nextjs-portal",
   ],
