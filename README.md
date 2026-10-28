@@ -268,13 +268,13 @@ Sau khi chụp xong, công cụ báo và chờ 8 giây: lúc đó bấm vào vù
 
 ## 8. Các luồng có sẵn
 
-Hiện có 71 luồng, tất cả cho app `supership` ở viewport `desktop`. Xem danh sách đầy đủ bằng `.\capture --list`.
+Các luồng bên dưới dùng app `supership` hoặc `superplatform` ở viewport `desktop`. Xem danh sách đầy đủ bằng `.\capture --list`.
 
 | Nhóm | Lệnh chạy cả nhóm | Số luồng | Số màn | Section cha trên Figma |
 | --- | --- | --- | --- | --- |
 | Đăng ký Shop (giả lập) | `--flow dang-ky-shop-mock` | 1 | 4 | Không có |
 | Đăng ký Shop (backend thật) | `--flow dang-ky-shop` | 1 | 4 | Không có |
-| Quên mật khẩu | `--flow "quen-mat-khau*"` | 11 | 71 | QUÊN MẬT KHẨU - ĐẶT LẠI MẬT KHẨU DÙNG OTP QUA SMS, và … QUA ZALO |
+| Quên mật khẩu | `--flow "quen-mat-khau*"` | 11 | 72 | QUÊN MẬT KHẨU - ĐẶT LẠI MẬT KHẨU DÙNG OTP QUA SMS, và … QUA ZALO |
 | Chấp nhận lời mời tham gia shop (chưa có tài khoản) | `--flow "loi-moi-shop*"` | 11 | 70 | CHẤP NHẬN LỜI MỜI THAM GIA SHOP (CHƯA CÓ TÀI KHOẢN) - XÁC THỰC OTP QUA SMS, và … QUA ZALO |
 | Lời mời của tôi | `--flow "loi-moi-cua-toi*"` | 6 | 29 | LỜI MỜI THAM GIA CỦA TÔI |
 | Xác thực email | `--flow "xac-thuc-email*"` | 3 | 14 | THÔNG TIN TÀI KHOẢN - XÁC THỰC EMAIL |
@@ -282,8 +282,272 @@ Hiện có 71 luồng, tất cả cho app `supership` ở viewport `desktop`. Xe
 | Thành viên cửa hàng | `--flow "thanh-vien-shop*"` | 28 | 108 | THÀNH VIÊN CỬA HÀNG |
 | Vai trò của shop | `--flow "vai-tro-shop*"` | 2 | 10 | QUẢN LÝ VAI TRÒ CỦA SHOP |
 | Vai trò riêng của shop | `--flow "vai-tro-rieng*"` | 5 | 21 | VAI TRÒ RIÊNG CỦA SHOP |
+| Khóa màn hình bằng PIN — SuperPlatform | `--flow "superplatform-pin*"` | 29 | 88 | SUPERPLATFORM → KHÓA MÀN HÌNH BẰNG MÃ PIN |
+| Chính sách tự đăng xuất — SuperPlatform | `--flow "superplatform-idle-policy*"` | 9 | 40 | SUPERPLATFORM → CHÍNH SÁCH TỰ ĐĂNG XUẤT |
+| Chính sách khóa đăng nhập (theo IP) — SuperPlatform | `--flow "superplatform-login-lockout*"` | 5 | 16 | SUPERPLATFORM → CHÍNH SÁCH KHÓA ĐĂNG NHẬP |
+| Khóa màn hình bằng PIN — SuperShip Web (trường hợp chính) | `--flow "supership-pin*"` | 9 | 27 | SUPERSHIP WEB → KHÓA MÀN HÌNH BẰNG MÃ PIN |
+| Xác thực định danh (CCCD) — SuperPlatform | `--flow "superplatform-cccd*"` | 11 | 40 | SUPERPLATFORM → XÁC THỰC ĐỊNH DANH (CCCD) |
+| Quên mật khẩu nội bộ — SuperPlatform | `--flow "superplatform-quen-mat-khau*"` | 11 | 37 | SUPERPLATFORM → QUÊN MẬT KHẨU NỘI BỘ |
+| Đăng nhập — SuperPlatform (8 nhóm con, xem bên dưới) | `--flow "superplatform-dang-nhap*"` | 59 | 188 | SUPERPLATFORM → ĐĂNG NHẬP → 8 Section con |
+| Hồ sơ của tôi — SuperPlatform (4 nhóm con, xem bên dưới) | `--flow "superplatform-ho-so-cua-toi*"` | 30 | 104 | SUPERPLATFORM → HỒ SƠ CỦA TÔI → 4 Section con |
+| Nhượng quyền và bưu cục — SuperPlatform (10 nhóm con, xem bên dưới) | xem [mục bên dưới](#nhượng-quyền-và-bưu-cục--superplatform-flowssuperplatform-nhuong-quyen-buu-cuc) | 73 | | SUPERPLATFORM — NHƯỢNG QUYỀN VÀ BƯU CỤC → 01 … 10 |
 
 Mọi nhóm trừ `dang-ky-shop` dùng backend giả lập: không tạo tài khoản hay cửa hàng, không gửi OTP, chạy lại bao nhiêu lần cũng được. Câu báo lỗi trong các nhánh thất bại được chép từ mã nguồn backend. Các luồng có ngày giờ hay bộ đếm ngược đều đứng đồng hồ của trang, nên ảnh giống nhau giữa các lần chạy.
+
+### Chính sách tự đăng xuất — SuperPlatform (`flows/superplatform-idle-policy/`)
+
+Trang `/workspace/security-policies`, thẻ **Tự đăng xuất**, viewport desktop 1440 × 900, ảnh 2×. Phiên quản trị, quyền, tổ chức, chính sách và MFA được giả lập; không sửa chính sách thật. Chụp theo giao diện hiện tại: chọn tổ chức và số phút → Lưu → hộp MFA dùng chung → cập nhật danh sách. Không gồm lỗi mạng hoặc lỗi hạ tầng.
+
+| id (tiền tố `superplatform-idle-policy-`) | Nội dung | Số màn |
+| --- | --- | --- |
+| `dat-moi` | Mặc định 30 phút, form, tìm tổ chức, nhập 10 phút, MFA, lưu và áp cấp dưới | 6 |
+| `chi-to-chuc` | Đặt 15 phút cho nhượng quyền và bỏ áp cấp dưới, MFA, kết quả | 3 |
+| `nhap-lieu` | Chưa chọn tổ chức; không tìm thấy; Shop bị loại; thiếu số phút; dưới/trên giới hạn; số lẻ; hai biên 5/30 phút; đổi tổ chức | 10 |
+| `huy` | Hủy form; hủy MFA và giữ thông tin, không lưu | 4 |
+| `sua` | Danh sách; điền sẵn; đổi thời gian và phạm vi; MFA; thay dòng cũ | 5 |
+| `ma-du-phong` | Mã thiếu; mã sai hoặc đã sử dụng; chọn mã dự phòng; lưu thành công | 4 |
+| `go` | Danh sách; xác nhận; hủy; MFA; gỡ và trở về mặc định | 5 |
+| `chi-xem` | Có quyền xem nhưng các nút đặt, sửa, gỡ bị khóa | 1 |
+| `chua-mfa` | Yêu cầu thiết lập MFA; đóng yêu cầu và giữ form chưa lưu | 2 |
+
+Chụp kiểm tra: `.\capture --flow "superplatform-idle-policy*" --no-figma`. Sau khi xem ảnh, mở đúng page trong Figma desktop và plugin Flow Capture rồi chạy lại lệnh bỏ `--no-figma` để nhập ảnh vào các Section.
+
+### Chính sách khóa đăng nhập — SuperPlatform (`flows/superplatform-login-lockout/`)
+
+Trang `/workspace/security-policies?tab=login-lockout`, thẻ **Khóa đăng nhập**: nhập sai mật khẩu bao nhiêu lần thì khóa đăng nhập bằng mật khẩu từ IP đó, khóa bao lâu. Phiên, quyền, chính sách và hộp **Xác nhận thao tác** được giả lập; câu báo chép từ backend (3–20 lần, 1–1440 phút, mặc định 5 lần và 15 phút).
+
+| id (tiền tố `superplatform-login-lockout-`) | Nội dung | Số màn |
+| --- | --- | --- |
+| `sua` | Mặc định; hộp sửa; nhập 10 lần, 90 phút và lý do; mã xác thực; đã lưu (1 giờ 30 phút, người sửa, phiên bản) | 5 |
+| `gioi-han` | Dưới/trên giới hạn số lần và số phút; thiếu lý do; hai biên hợp lệ 3 lần, 1440 phút | 6 |
+| `huy-xac-nhan` | Mã xác thực sai; đóng hộp xác nhận, giữ số đã nhập, chưa lưu | 2 |
+| `nguoi-khac-sua` | Người khác vừa lưu trước; tải lại thấy chính sách mới | 2 |
+| `chi-xem` | Chỉ có quyền xem: không có nút Sửa | 1 |
+
+### Xác thực định danh (CCCD) — SuperPlatform (`flows/superplatform-cccd/`)
+
+Trang `/workspace/account/identity-document` (Tài khoản của tôi › Giấy tờ định danh), viewport desktop 1440 × 900, ảnh 2×. Phiên, đồng ý, giấy tờ, bước đọc thẻ (`card-check`), kết quả eKYC, danh mục địa chỉ (`/api/address`) và hộp mã xác thực (step-up, chỉ còn ở lưu nơi ở) được giả lập; không gọi VNPT. Từ 27/10/2026 hai mặt thẻ được đọc ngay khi bấm **Tiếp tục** ở mặt sau: đọc được thì có bước **Thông tin** để xác nhận trước khi chụp khuôn mặt; thẻ bị từ chối (hết hạn, số đã dùng, khác số) hiện hộp lỗi chung **Chưa xác thực được** trên hộp xác thực rồi về bước mặt trước; gửi khuôn mặt không còn hỏi mã xác thực. Camera được thay bằng cảnh vẽ sẵn: camera sau quay một thẻ căn cước mẫu, camera trước quay một khuôn mặt minh họa. Câu báo kết quả chép từ `IdentityDocumentImageService`. Mỗi luồng chỉ chụp các màn chính. Chưa gồm chế độ "Quét tự động" (thử nghiệm, cần SDK VNPT).
+
+| id (tiền tố `superplatform-cccd-`) | Nội dung | Số màn |
+| --- | --- | --- |
+| `thanh-cong` | Chưa xác thực; đồng ý; chụp mặt trước, mặt sau; kiểm tra thông tin đọc từ thẻ; khuôn mặt; kết quả; trang đã xác thực | 10 |
+| `tai-anh` | Không mở được camera; hướng dẫn chụp; tải ảnh; ảnh quá nhỏ; đã chọn ảnh | 5 |
+| `chup-lai` | Chưa đọc rõ mặt trước khi đọc thẻ (về bước 1, trước khuôn mặt); chưa thấy rõ khuôn mặt | 2 |
+| `khuon-mat-khong-dat` | Khuôn mặt không khớp (còn 4 lần); không phải người thật | 2 |
+| `tam-khoa` | Sai lần cuối → tạm khóa; trang đang tạm khóa | 2 |
+| `tu-choi` | Căn cước hết hạn; số căn cước đã được dùng (hộp lỗi chung ngay sau bước mặt sau) | 2 |
+| `xac-thuc-lai` | Xác nhận xác thực lại; thẻ khác số (hộp lỗi chung); về bước 1 chọn lại ảnh; đúng thẻ — kiểm tra thông tin; đã xác thực lại | 5 |
+| `het-han` | Sắp hết hạn; đã hết hạn | 2 |
+| `noi-o` | Giống thường trú; nơi khác thiếu thông tin; đã nhập; mã xác thực; đã cập nhật | 5 |
+| `rut-dong-y` | Xác nhận ngừng cho phép dùng ảnh; ảnh đã xóa | 2 |
+| `loi-he-thong` | Chức năng chưa sẵn sàng; lỗi tải trang; hệ thống xác thực đang bận | 3 |
+
+Bước cũ không còn (27/10/2026): `ma-xac-thuc` của `thanh-cong` (gửi khuôn mặt không còn hỏi mã) sẽ hiện ở cuối Section với tiền tố `⚠ không còn trong luồng`.
+
+Tạo trang xem trước toàn bộ ảnh: `python scripts/preview-idle-policy.py` (cần Pillow). Mở `captures/idle-policy-preview/index.html`; nhấp một ảnh để xem PNG đầy đủ.
+
+### Nhượng quyền và bưu cục — SuperPlatform (`flows/superplatform-nhuong-quyen-buu-cuc/`)
+
+Mọi luồng về nhượng quyền và bưu cục nằm trong một Section cha **SUPERPLATFORM — NHƯỢNG QUYỀN VÀ BƯU CỤC**, chia thành 10 Section con đánh số theo thứ tự nghiệp vụ. Tên Section khai báo một chỗ ở `flows/_helpers/superplatform-franchise-sections.ts`; thư mục con mang cùng số nên Section con được dựng theo đúng thứ tự. Không gồm luồng lỗi mạng.
+
+| Section con | Thư mục | Tiền tố id | Số luồng |
+| --- | --- | --- | --- |
+| 01. DANH SÁCH TỔ CHỨC | `01-danh-sach` | `superplatform-danh-sach-` | 8 |
+| 02. THÊM ĐỐI TÁC NHƯỢNG QUYỀN | `02-them-nhuong-quyen` | `superplatform-nhuong-quyen-` | 7 |
+| 03. MỞ BƯU CỤC | `03-mo-buu-cuc` | `superplatform-buu-cuc-` | 5 |
+| 04. HỒ SƠ TỔ CHỨC | `04-ho-so` | `superplatform-ho-so-` | 7 |
+| 05. THÔNG TIN PHÁP LÝ | `05-phap-ly` | `superplatform-phap-ly-` | 13 |
+| 06. NGƯỜI ĐẠI DIỆN | `06-nguoi-dai-dien` | `superplatform-nguoi-dai-dien-` | 10 |
+| 07. LIÊN HỆ CỦA TỔ CHỨC | `07-lien-he` | `superplatform-lien-he-` | 6 |
+| 08. ĐỊA CHỈ CỦA TỔ CHỨC | `08-dia-chi` | `superplatform-dia-chi-` | 5 |
+| 09. ĐỔI LOẠI HÌNH BƯU CỤC | `09-loai-hinh` | `superplatform-loai-hinh-` | 4 |
+| 10. TẠM NGƯNG, KÍCH HOẠT LẠI, NGỪNG HOẠT ĐỘNG | `10-trang-thai` | `superplatform-trang-thai-` | 8 |
+
+Chạy cả 73 luồng theo đúng thứ tự (bỏ `--no-figma` để gửi sang Figma):
+
+```powershell
+.\capture --no-figma --flow "superplatform-danh-sach-*" --flow "superplatform-nhuong-quyen-*" --flow "superplatform-buu-cuc-*" --flow "superplatform-ho-so-*" --flow "superplatform-phap-ly-*" --flow "superplatform-nguoi-dai-dien-*" --flow "superplatform-lien-he-*" --flow "superplatform-dia-chi-*" --flow "superplatform-loai-hinh-*" --flow "superplatform-trang-thai-*"
+```
+
+Luồng đã bỏ: `superplatform-buu-cuc-mat-ket-noi`, `superplatform-danh-sach-loi-tai` (lỗi mạng).
+
+#### 02, 03. Thêm đối tác nhượng quyền, mở bưu cục
+
+Hai trang riêng, viewport desktop 1440 × 900, ảnh 2×, đồng hồ trang dừng ở 12/10/2026:
+
+- **Thêm đối tác nhượng quyền:** Danh sách tổ chức `/workspace/organizations` (thẻ Nhượng quyền) → nút **Thêm đối tác nhượng quyền** → `/workspace/organizations/new/franchise`, năm mục 01–05 (thông tin chung, pháp lý theo hình thức, người đại diện theo pháp luật, liên hệ, văn phòng giao dịch) → hộp kiểm tra lại → mã xác thực → trang nhượng quyền mới. API `POST /v1/franchises`.
+- **Mở bưu cục:** trang nhượng quyền → thẻ **Bưu cục** → nút **Mở bưu cục** → `/workspace/organizations/{nhượng quyền}/post-offices/new`, bốn mục 1–4 và khung "Bưu cục mới" → hộp kiểm tra lại → mã xác thực → trang bưu cục mới. API `POST /v1/franchises/{id}/post-offices`.
+
+Phiên, quyền, danh mục (`creation-options`, `post-office-creation-options`), tỉnh/xã, danh sách, hộp mã xác thực và kết quả đều giả lập; không tạo đơn vị thật. Danh mục và câu báo chép từ `CreationOptionsService`, `LegalProfileRules`, `RepresentativeEntryRules`, `CompanyEmailDomainRules`, `OperationalCreationSupport`, `MfaUnitOfWork` và `creation-form.ts` của web. Mặc định chỉ Quản trị hệ thống có `organization.franchise.create`, `organization.post_office.create`; Quản lý nhượng quyền không mở được bưu cục (luồng `quan-ly-khong-co-quyen`).
+
+| id (tiền tố `superplatform-nhuong-quyen-`) | Nội dung | Số màn |
+| --- | --- | --- |
+| `thanh-cong` | Danh sách; form trống; đã nhập đủ năm mục (doanh nghiệp, logo, tệp giấy đăng ký, hai người đại diện, văn phòng giao dịch); kiểm tra lại; mã xác thực; trang nhượng quyền mới | 6 |
+| `ca-nhan` | Chọn Cá nhân (số định danh 12 số, không người đại diện); đã nhập; đã thêm | 3 |
+| `ho-kinh-doanh` | Người đại diện là chủ hộ, căn cứ điền sẵn; đã thêm | 2 |
+| `nhap-lieu` | Bỏ trống; tên miền công cộng, mã số 13 số, số điện thoại, Email sai; đổi tỉnh xóa xã; hỏi khi đổi hình thức pháp lý | 4 |
+| `may-chu-tu-choi` | Tên miền Email công ty đã dùng; phường, xã không thuộc tỉnh | 2 |
+| `ma-xac-thuc` | Mã sai; hủy xác thực giữ dữ liệu | 2 |
+| `roi-trang` | Hỏi trước khi rời trang; ở lại | 2 |
+
+| id (tiền tố `superplatform-buu-cuc-`) | Nội dung | Số màn |
+| --- | --- | --- |
+| `quan-tri-thanh-cong` | Thẻ Bưu cục; form trống; chọn loại hình; đã nhập; kiểm tra lại; mã xác thực; trang bưu cục mới | 7 |
+| `quan-ly-khong-co-quyen` | Quản lý nhượng quyền: không có nút; mở thẳng đường dẫn bị chặn | 2 |
+| `nhap-lieu` | Bỏ trống, thiếu loại hình | 1 |
+| `may-chu-tu-choi` | Nhượng quyền vừa tạm ngưng; phường, xã không thuộc tỉnh | 2 |
+| `nhuong-quyen-tam-ngung` | Nút Mở bưu cục bị khóa kèm lý do; mở thẳng đường dẫn | 2 |
+
+Luồng cũ đã bỏ (Section trên Figma cần xóa tay): `superplatform-buu-cuc-quan-ly-thanh-cong`. Các bước cũ không còn (`menu-tao`, `tim-nguoi-dai-dien`, `chon-nhuong-quyen`, `ma-so-thue-da-dung`, `nguoi-dai-dien-khong-dung-duoc`) sẽ hiện ở cuối Section với tiền tố `⚠ không còn trong luồng`.
+
+### Quên mật khẩu nội bộ — SuperPlatform (`flows/superplatform-quen-mat-khau/`)
+
+Theo LUỒNG QUÊN MẬT KHẨU PHÍA NỘI BỘ 2.1.1, code web ngày 21/10 (`e8a89114`, mật khẩu mới đặt ngay trên trang). Mọi bước ở trang `/forgot-password` của web nội bộ: số điện thoại/Email công ty và số căn cước (gõ tay, quét mã QR hoặc chụp mặt trước thẻ) → xác nhận thông tin tìm được (họ tên, số điện thoại và CCCD đã che) → xác thực khuôn mặt (khi một công ty có liên kết yêu cầu; đồng ý trước lần chụp đầu) → chọn kênh, OTP tới số điện thoại đã xác minh → đặt mật khẩu mới → về trang đăng nhập với thông báo "Đặt mật khẩu mới thành công", mọi phiên bị đăng xuất. Viewport desktop 1440 × 900, ảnh 2×. API, captcha (ẩn), camera (khuôn mặt và thẻ vẽ sẵn) và bộ đọc mã QR đều giả lập; không gửi OTP, không gọi VNPT, không đổi mật khẩu thật. Câu báo chép từ `InternalResetIdentification`, `InternalResetCardNumber`, `InternalResetFaceStep`, `OtpChallengeService`. Chưa gồm chế độ "Quét tự động" (cần bộ xử lý khuôn mặt của VNPT).
+
+| id (tiền tố `superplatform-quen-mat-khau-`) | Nội dung | Số màn |
+| --- | --- | --- |
+| `thanh-cong` | Nhập thông tin; xác nhận thông tin; đồng ý; chụp, xem lại, gửi khuôn mặt; xác minh thành công, chọn kênh; OTP; đặt mật khẩu mới; đặt thành công ở trang đăng nhập | 12 |
+| `khong-xac-minh-khuon-mat` | Không công ty nào yêu cầu khuôn mặt (4 bước): xác nhận thông tin; chọn kênh; đặt mật khẩu mới | 3 |
+| `thong-tin-khong-hop-le` | Số căn cước thiếu; thông tin không khớp | 2 |
+| `chua-xac-thuc-can-cuoc` | Chưa có giấy tờ định danh được duyệt | 1 |
+| `nhap-sai-otp` | Sai mã còn 2 lần; sai 5 lần, mã bị khóa | 2 |
+| `chup-lai` | Chưa thấy rõ khuôn mặt; chụp lại | 2 |
+| `khuon-mat-khong-khop` | Còn 2 lần; không khớp còn 1 lần; không khớp lần 3, dừng | 3 |
+| `khong-the-xac-minh` | Chưa sẵn sàng; tạm khóa; cần xác thực lại căn cước | 3 |
+| `mat-khau-chua-dat` | Mật khẩu chưa đạt; nhập lại không khớp | 2 |
+| `anh-can-cuoc` | Quét mã QR, số tự điền; chụp mặt trước thẻ, chưa đọc được, chụp lại, số tự điền; xác nhận thông tin | 6 |
+| `nhap-lai-thong-tin` | Không phải thông tin của mình: nhập lại, giữ chữ đã nhập | 1 |
+
+Luồng cũ đã bỏ (Section trên Figma cần xóa tay): `superplatform-quen-mat-khau-mat-khau-tam-het-han`. Các bước cũ không còn (`mat-khau-tam`, `dang-nhap-mat-khau-tam`, `otp-lan-hai` của luồng 01; `mat-khau-tam` của luồng 02) sẽ hiện ở cuối Section với tiền tố `⚠ không còn trong luồng`.
+
+### Đăng nhập — SuperPlatform (`flows/superplatform-dang-nhap/`)
+
+Mọi luồng từ trang `/` của web nội bộ tới lúc vào đơn vị làm việc, theo code web và backend ngày 27/10/2026 (LUỒNG ĐĂNG NHẬP BẰNG MẬT KHẨU, LUỒNG PASSKEY phần B, Xác nhận đăng nhập trên thiết bị mới, ADR-017). Viewport desktop 1440 × 900, ảnh 2×. API, hộp xác nhận Passkey của trình duyệt và camera đều giả lập; captcha là widget thật của Cloudflare với sitekey thử. Đồng hồ của trang đứng ở phút bắt đầu lần chạy (`START` trong `flows/_helpers/superplatform-login.ts`): cố định một ngày cũ thì widget Cloudflare báo "Thời gian thiết bị không chính xác" và không cấp token. Câu báo chép từ backend (`IdentifierResolver`, `InvalidCredentialsException`, `LoginLockedException`, `AccountInactivity`, `AccountRecovery`, `AccessContextEligibilityService`, `PasskeyLoginService`, `DeviceLoginApprovalService`, `PasswordChangeReasons`, `ForcedPasswordResetService`…) và web (`LoginCard`, `session-expired-notice.ts`). Sai mật khẩu, tài khoản khóa, vô hiệu hóa, chưa kích hoạt đều cùng một câu "Thông tin đăng nhập không hợp lệ."; từ lần sai thứ 5 là câu tạm khóa riêng kèm đếm ngược. Không gồm gợi ý Passkey ở ô nhập (trình duyệt tự vẽ) và captcha chưa xong.
+
+Helper chung: `superplatform-login.ts` (`loginFlow`, `mock.on(...)` để đổi câu trả lời API, `afterPassword`, `nextAction`, `sessionExtra`); mỗi nhóm con có helper riêng: `superplatform-device-approval.ts`, `superplatform-login-mfa.ts`, `superplatform-login-password.ts`, `superplatform-login-units.ts`.
+
+| Section con (dưới SUPERPLATFORM → ĐĂNG NHẬP) | File | Tiền tố id (sau `superplatform-dang-nhap-`) | Số luồng | Số màn |
+| --- | --- | --- | --- | --- |
+| ĐĂNG NHẬP BẰNG MẬT KHẨU | `1-mat-khau.flow.ts` | `mat-khau-` | 14 | 46 |
+| ĐĂNG NHẬP BẰNG PASSKEY | `2-passkey.flow.ts` | `passkey-` | 7 | 12 |
+| ĐĂNG NHẬP BẰNG MÃ QR | `3-ma-qr.flow.ts` | `ma-qr-` | 1 | 1 |
+| XÁC NHẬN ĐĂNG NHẬP TRÊN THIẾT BỊ MỚI | `4-thiet-bi-moi.flow.ts` | `thiet-bi-moi-` | 11 | 30 |
+| XÁC THỰC HAI LỚP KHI ĐĂNG NHẬP | `5-xac-thuc-hai-lop.flow.ts` | `mfa-` | 8 | 34 |
+| ĐỔI MẬT KHẨU BẮT BUỘC KHI ĐĂNG NHẬP | `6-doi-mat-khau-bat-buoc.flow.ts` | `doi-mat-khau-` | 8 | 34 |
+| CHỌN ĐƠN VỊ LÀM VIỆC KHI ĐĂNG NHẬP | `7-chon-don-vi.flow.ts` | `chon-don-vi-` | 6 | 21 |
+| THÔNG BÁO KHI QUAY VỀ TRANG ĐĂNG NHẬP | `8-thong-bao-quay-lai.flow.ts` | `thong-bao-` | 4 | 10 |
+
+| id (tiền tố `superplatform-dang-nhap-`) | Nội dung | Số màn |
+| --- | --- | --- |
+| `mat-khau-email` | Màn đăng nhập; để trống; Email cá nhân bị từ chối; Email công ty; MFA; chọn đơn vị; trang chủ | 8 |
+| `mat-khau-so-dien-thoai` | Số điện thoại; hiện mật khẩu; MFA; chọn đơn vị; trang chủ | 6 |
+| `mat-khau-ma-nhan-vien` | Mã nhân viên; MFA; chọn đơn vị; trang chủ | 5 |
+| `mat-khau-khoa-tam-thoi` | Sai mật khẩu; sai lần 1; sai lần 5, tạm khóa 15 phút; nút đếm ngược "Thử lại sau 15:00"; tài khoản khác mở lại nút; mở lại trang nhập đúng; đang khóa vẫn bị từ chối | 7 |
+| `mat-khau-tai-khoan-bi-khoa` | Nhập đúng; bị từ chối (báo chung) | 2 |
+| `mat-khau-tai-khoan-vo-hieu-hoa` | Nhập đúng; bị từ chối (báo chung) | 2 |
+| `mat-khau-tai-khoan-chua-kich-hoat` | Nhập đúng; bị từ chối (báo chung) | 2 |
+| `mat-khau-khoa-khong-hoat-dong` | Nhập đúng; "Tài khoản đã bị tạm khóa" vì lâu không hoạt động | 2 |
+| `mat-khau-can-khoi-phuc` | Nhập đúng; tài khoản cần khôi phục qua Quên mật khẩu | 2 |
+| `mat-khau-quyen-tam-dung` | Nhập đúng; mọi đơn vị tạm dừng quyền, "Chưa vào được đơn vị nào" | 2 |
+| `mat-khau-chua-den-ngay-lam-viec` | Nhập đúng; chưa đến ngày bắt đầu làm việc | 2 |
+| `mat-khau-chua-duoc-cap-quyen` | Nhập đúng; chưa được cấp quyền vào SuperPlatform | 2 |
+| `mat-khau-ung-dung-bao-tri` | Nhập đúng; SuperPlatform đang bảo trì | 2 |
+| `mat-khau-mat-ket-noi` | Nhập đúng; "Mất kết nối" | 2 |
+| `passkey-thanh-cong` | Màn đăng nhập; chờ xác nhận trên máy; chọn đơn vị (không hỏi MFA); mời tin cậy thiết bị; đã tin cậy | 5 |
+| `passkey-huy` | Chờ xác nhận; đóng hộp của máy, đã hủy | 2 |
+| `passkey-khong-hop-le` | Passkey đã gỡ, tài khoản khóa: báo chung | 1 |
+| `passkey-het-han` | Yêu cầu đã hết hạn | 1 |
+| `passkey-qua-nhieu-yeu-cau` | Quá nhiều yêu cầu trong một phút | 1 |
+| `passkey-khong-ho-tro` | Trình duyệt không hỗ trợ: nút Passkey bị khóa | 1 |
+| `passkey-khoa-khong-hoat-dong` | Xác nhận passkey xong mới báo tài khoản bị tạm khóa vì lâu không hoạt động | 1 |
+| `ma-qr-hien-ma` | Hộp mã QR, chờ xác nhận trên điện thoại (web hiện là ảnh cố định) | 1 |
+| `thiet-bi-moi-cho-phep` | Nhập trên máy mới; chờ thiết bị tin cậy (số cần chọn, đếm ngược); được cho phép, chọn đơn vị; trang chủ | 4 |
+| `thiet-bi-moi-ma-xac-thuc` | Không có thiết bị tin cậy: nhập mã Authenticator; đã nhập; chọn đơn vị | 3 |
+| `thiet-bi-moi-ma-du-phong` | Chờ cho phép; nhập mã dự phòng; đã nhập; chọn đơn vị | 4 |
+| `thiet-bi-moi-sai-ma` | Nhập mã; báo mã không đúng | 2 |
+| `thiet-bi-moi-sai-qua-so-lan` | Sai 4 lần, nhập lại; "Chưa xác minh được", lần đăng nhập bị hủy; về trang đăng nhập | 3 |
+| `thiet-bi-moi-tu-choi` | Chờ cho phép; "Đăng nhập chưa được chấp nhận"; về trang đăng nhập | 3 |
+| `thiet-bi-moi-chon-sai-so` | Chờ cho phép; "Số không khớp"; về trang đăng nhập | 3 |
+| `thiet-bi-moi-het-han` | Chờ cho phép (còn 00:05); "Bạn cần đăng nhập lại"; về trang đăng nhập | 3 |
+| `thiet-bi-moi-huy` | Hỏi "Hủy yêu cầu đăng nhập?"; đã hủy, về trang đăng nhập | 2 |
+| `thiet-bi-moi-xac-minh-danh-tinh` | Chưa có Authenticator: màn "Xác minh danh tính"; bước đồng ý xác thực khuôn mặt | 2 |
+| `thiet-bi-moi-qua-nhanh` | "Thao tác quá nhanh", nút "Thử lại sau 1:00" | 1 |
+| `mfa-sai-ma` | Màn nhập mã; nhập sai; "Mã xác thực không đúng"; nhập lại đúng; chọn đơn vị | 5 |
+| `mfa-tam-khoa` | Sai lần 5; "Tạm khóa xác thực"; nút "Thử lại sau 15:00" | 3 |
+| `mfa-ma-du-phong` | Màn nhập mã; chuyển sang mã dự phòng; đã nhập; "Xác thực thành công", còn 7 mã; chọn đơn vị | 5 |
+| `mfa-ma-du-phong-sai` | Đã nhập mã sai; "Mã dự phòng không đúng" | 2 |
+| `mfa-passkey` | Màn nhập mã; "Đang chờ passkey…"; chọn đơn vị | 3 |
+| `mfa-mat-dien-thoai` | "Mất điện thoại?"; đặt lại MFA; đã nhập mã dự phòng; hỏi "Đặt lại xác thực hai lớp?"; màn đầu thiết lập Authenticator mới | 5 |
+| `mfa-quay-ve-dang-nhap` | Màn nhập mã; về trang đăng nhập | 2 |
+| `mfa-thiet-lap` | Đăng nhập; bắt buộc thiết lập; chọn kênh OTP; nhập OTP; quét QR; nhập sai mã; nhập đúng; lưu 10 mã dự phòng; chọn đơn vị | 9 |
+| `doi-mat-khau-mat-khau-tam` | Đăng nhập bằng mật khẩu tạm; màn Đổi mật khẩu; đã nhập; mã Authenticator; chọn đơn vị; trang chủ | 6 |
+| `doi-mat-khau-ly-do-khac` | Hết hạn; quá ngắn so với mức tối thiểu; chưa đủ độ dài; đủ độ dài; bị lộ | 5 |
+| `doi-mat-khau-mat-khau-moi-chua-hop-le` | Chưa đạt yêu cầu; xác nhận không khớp; trùng mật khẩu hiện tại; trùng 5 mật khẩu gần nhất; đã bị lộ | 5 |
+| `doi-mat-khau-sai-mat-khau-hien-tai` | Sai lần 1; sai 5 lần, tạm dừng 15 phút | 2 |
+| `doi-mat-khau-quan-tri-buoc-dat-lai` | Đăng nhập; Đặt mật khẩu mới; đã nhập; đồng ý xác minh khuôn mặt; chụp; xem lại; vào chọn đơn vị, "Đã đặt mật khẩu mới" | 7 |
+| `doi-mat-khau-xac-minh-otp` | Gửi mã OTP; đã nhập OTP; đặt xong, nhập mã Authenticator | 3 |
+| `doi-mat-khau-khong-dat-duoc` | Trùng mật khẩu cũ; trùng 5 mật khẩu gần nhất; nhập lại không khớp; khuôn mặt không khớp còn 2 lần; sai lần 3, không thể tiếp tục | 5 |
+| `doi-mat-khau-chua-co-cach-xac-minh` | Không thể tiếp tục, liên hệ Quản trị hệ thống | 1 |
+| `chon-don-vi-mot-don-vi` | Xác thực hai lớp; chỉ một đơn vị, vào thẳng trang chủ | 2 |
+| `chon-don-vi-mac-dinh` | Xác thực hai lớp; vào thẳng đơn vị mặc định | 2 |
+| `chon-don-vi-nhieu-don-vi` | 5 đơn vị; tìm theo tên; tìm theo mã; không có kết quả; đặt mặc định; bỏ mặc định; chọn đơn vị; trang chủ | 8 |
+| `chon-don-vi-don-vi-tam-dung` | Đơn vị mặc định tạm dừng nên phải chọn; các dòng bị khóa có lý do; trang chủ | 3 |
+| `chon-don-vi-khong-vao-duoc` | Nhập thông tin; đơn vị duy nhất tạm ngưng, đăng xuất và báo | 2 |
+| `chon-don-vi-tu-choi-khi-vao` | Chọn đơn vị; bị từ chối khi vào; làm mới danh sách; chọn đơn vị khác | 4 |
+| `thong-bao-het-phien` | Phiên hết hạn; tự đăng xuất vì không thao tác | 2 |
+| `thong-bao-dang-xuat-tu-noi-khac` | Đăng nhập ở nơi khác; đăng xuất từ thiết bị khác; quyền làm việc bị tạm dừng; mạng không được phép | 4 |
+| `thong-bao-tu-dang-xuat` | Đăng xuất phiên hiện tại; gỡ thiết bị này; đăng xuất khỏi mọi nơi | 3 |
+| `thong-bao-huy-dang-nhap` | Sai mã quá số lần khi thiết lập xác thực hai lớp | 1 |
+
+Luồng `mat-khau-khoa-tam-thoi` đã đổi theo hành vi khóa mới (24/10): giữ các bước cũ, thêm `sai-lan-5`, `dem-nguoc`, `tai-khoan-khac`. Luồng `mat-khau-so-dien-thoai` thêm bước `hien-mat-khau`.
+
+### Hồ sơ của tôi — SuperPlatform (`flows/superplatform-ho-so-cua-toi/`)
+
+Trang "Thông tin tài khoản" (`/workspace/account/profile`, mục "Hồ sơ" trong Tài khoản của tôi) của web nội bộ, theo code web và backend ngày 27/10/2026. Nhân viên Nguyễn Minh Anh, SuperTek; phiên nội bộ dựng bằng `mockPin` (`superplatform-screen-lock.ts`), đồng hồ trang đứng ở 12/10/2026 09:00. Viewport desktop 1440 × 900, ảnh 2×; trạng thái trang dài chụp cả trang. API, captcha (ẩn), OTP và ảnh đại diện (vẽ sẵn, không phải ảnh người thật) đều giả lập; không đổi dữ liệu thật. Câu báo chép từ `MyProfilePage`, `EmergencyContactService`, `IdentityContractService`, `UserService`, `IdentifierChangeService`, `StepUpGuard`, `OtpSessionService`, `CurrentPasswordVerifier`, `ProfileUpdateRequestService`. Đổi số điện thoại/email luôn qua hộp "Xác nhận thao tác" (mã xác thực) sau mật khẩu, như backend đòi với mọi tài khoản.
+
+Helper chung: `superplatform-my-profile.ts` (`profileFlow`, `mock.on(...)`, dữ liệu hồ sơ trong `mock`); helper riêng: `superplatform-my-profile-identifiers.ts` (đổi số/email, OTP, mã xác thực), `superplatform-my-profile-extras.ts` (ảnh đại diện, yêu cầu cập nhật hồ sơ).
+
+| Section con (dưới SUPERPLATFORM → HỒ SƠ CỦA TÔI) | File | Tiền tố id (sau `superplatform-ho-so-cua-toi-`) | Số luồng | Số màn |
+| --- | --- | --- | --- | --- |
+| THÔNG TIN CÁ NHÂN VÀ LIÊN HỆ KHẨN CẤP | `1-thong-tin-ca-nhan.flow.ts` | không tiền tố riêng | 5 | 13 |
+| ĐỔI SỐ ĐIỆN THOẠI VÀ EMAIL | `2-doi-so-dien-thoai-email.flow.ts` | `dinh-danh-` | 16 | 68 |
+| ẢNH ĐẠI DIỆN | `3-anh-dai-dien.flow.ts` | `anh-dai-dien-` | 5 | 13 |
+| YÊU CẦU CẬP NHẬT HỒ SƠ VÀ CẢNH BÁO | `4-yeu-cau-cap-nhat.flow.ts` | `yeu-cau-` | 4 | 10 |
+
+| id (tiền tố `superplatform-ho-so-cua-toi-`) | Nội dung | Số màn |
+| --- | --- | --- |
+| `xem` | Thông tin tài khoản; Mã nhân viên, Email công ty do công ty quản lý; quản lý xem được liên hệ khẩn cấp | 3 |
+| `sua-thanh-cong` | Sửa họ tên; cập nhật thành công | 2 |
+| `theo-can-cuoc` | Căn cước đã xác thực: họ tên, ngày sinh, giới tính bị khóa | 1 |
+| `nhap-lieu` | Xóa họ tên; liên hệ khẩn cấp nhập thiếu | 2 |
+| `lien-he-khan-cap` | Số người liên hệ không hợp lệ; nhập đủ; đã lưu; xóa hết ba ô; đã gỡ | 5 |
+| `dinh-danh-doi-so-dien-thoai` | Hồ sơ; hộp đổi số; đã nhập số mới và mật khẩu; mã xác thực; OTP gửi tới số mới; thành công, các thiết bị khác đã đăng xuất; hồ sơ hiện số mới | 7 |
+| `dinh-danh-doi-email` | Hộp đổi email; đã nhập; mã xác thực; OTP gửi tới email mới; thành công; hồ sơ hiện email mới | 6 |
+| `dinh-danh-them-email` | Hàng Email "Chưa có"; hộp thêm email; OTP; thành công; đã có email | 5 |
+| `dinh-danh-them-so-dien-thoai` | Hàng "Chưa có"; hộp thêm số; OTP; thành công; đã có số | 5 |
+| `dinh-danh-xac-minh-so-dien-thoai` | Số chưa xác minh; hộp chưa xác minh; mở hộp đổi số; số đang dùng bị từ chối; thành công với số mới; đã xác minh | 6 |
+| `dinh-danh-xac-minh-email` | Email chưa xác minh; hộp chưa xác minh; "Xác minh ngay" mở Thêm email điền sẵn; OTP; thành công; đã xác minh | 6 |
+| `dinh-danh-loi-so-dien-thoai` | Sai đầu số; thiếu chữ số; số đang dùng; số của tài khoản khác; số không dùng được | 5 |
+| `dinh-danh-loi-email` | Sai định dạng; email đang dùng; email đã được dùng; email công ty | 4 |
+| `dinh-danh-sai-mat-khau` | Sai mật khẩu hiện tại; nhập lại; sai quá số lần, thử lại sau 15 phút | 3 |
+| `dinh-danh-tu-choi-gui-ma` | Đổi số quá số lần trong ngày; vừa đổi số nên chưa đổi được email | 2 |
+| `dinh-danh-khong-co-mat-khau` | Form không hỏi mật khẩu; mã xác thực; thành công | 3 |
+| `dinh-danh-xac-nhan-that-bai` | Sai mã xác thực; đóng hộp xác nhận, đã hủy | 2 |
+| `dinh-danh-sai-ma-otp` | Sai mã còn 4 lần; sai quá số lần; đóng hộp, giữ số cũ | 3 |
+| `dinh-danh-ma-het-han` | Mã hết hạn, hiện Gửi lại; đã gửi mã mới; mã mới cũng hết hạn; giữ số cũ | 4 |
+| `dinh-danh-gui-lai-doi-kenh` | Đếm ngược 03:00; có thể gửi lại; đã gửi lại; chọn kênh Zalo; nhận mã qua Zalo | 5 |
+| `dinh-danh-dong-giua-chung` | Đang chờ nhập mã; đóng hộp thì giữ số cũ | 2 |
+| `anh-dai-dien-doi-anh` | Ảnh mặc định; hộp cắt ảnh; cập nhật thành công; ảnh mới trên trang và góc trên | 4 |
+| `anh-dai-dien-huy-cat-anh` | Hộp cắt ảnh; đóng, giữ ảnh cũ | 2 |
+| `anh-dai-dien-tep-khong-phai-anh` | Chọn tệp PDF: hộp cắt ảnh trống, Xác nhận bị khóa | 1 |
+| `anh-dai-dien-kho-anh-loi` | Kho ảnh lỗi: hai hộp lỗi nối nhau; giữ ảnh cũ | 3 |
+| `anh-dai-dien-xung-dot` | Hồ sơ đã đổi ở thiết bị khác: hai hộp lỗi nối nhau; giữ ảnh cũ | 3 |
+| `yeu-cau-cap-nhat-theo-yeu-cau` | Thanh nhắc và dấu "Cần cập nhật"; lưu để xác nhận; lưu liên hệ khẩn cấp; đổi ảnh, thanh nhắc tự hết | 4 |
+| `yeu-cau-roi-trang-khi-dang-sua` | Hộp "Bạn chưa lưu thay đổi"; ở lại; rời trang | 3 |
+| `yeu-cau-cap-nhat-o-noi-khac` | Khối cảnh báo vàng; tải thông tin mới | 2 |
+| `yeu-cau-luu-bi-tu-choi` | Lưu khi hồ sơ đã đổi ở thiết bị khác: Thất bại | 1 |
+
+Chưa gồm: hết hạn yêu cầu đổi số/email sau 15 phút, chưa cài Authenticator khi đổi số/email, mật khẩu vừa đặt ở tab khác. Căn cước và nơi ở nằm ở nhóm Xác thực định danh (CCCD).
 
 ### Đăng ký Shop
 
@@ -302,7 +566,7 @@ Hai Section cha, mỗi kênh OTP một cái; trong mỗi cái có 5 Section con 
 | 4. NHẬP SAI QUÁ SỐ LẦN QUY ĐỊNH | `quen-mat-khau-<kênh>-nhap-sai-qua-so-lan` | 5 |
 | 5. HẾT PHIÊN OTP | `quen-mat-khau-<kênh>-het-phien-otp` | 6 |
 
-Thêm một Section riêng không thuộc kênh nào, `quen-mat-khau-loi-nhap-lieu` (7 màn): số điện thoại sai định dạng, không tồn tại; mật khẩu chưa đạt, không khớp, trùng mật khẩu hiện tại; vượt giới hạn OTP trong ngày.
+Thêm một Section riêng không thuộc kênh nào, `quen-mat-khau-loi-nhap-lieu` (8 màn): số điện thoại sai định dạng; mật khẩu chưa đạt, không khớp; vượt giới hạn OTP trong ngày; sau OTP mật khẩu mới trùng mật khẩu hiện tại, nhập mật khẩu khác rồi đổi; thành công. Theo luồng 2.1.1 phần B, số không có tài khoản không còn bị báo (mọi số hợp lệ đi tiếp, màn OTP luôn ghi "Nếu số này có tài khoản, hướng dẫn sẽ được gửi tới số đó."), nên bước `sdt-khong-ton-tai` cũ sẽ hiện ở cuối Section với tiền tố `⚠ không còn trong luồng`. Lỗi nhập liệu và OTP sai hiện trong hộp "Không thể hoàn tất thao tác" có nút "Đã hiểu".
 
 ### Chấp nhận lời mời tham gia shop, người chưa có tài khoản (`flows/loi-moi-tham-gia-shop/`)
 
@@ -364,6 +628,69 @@ Tất cả nằm trong một Section cấp 1 **THÀNH VIÊN CỬA HÀNG**. Hai l
 | `vai-tro-rieng-chinh-sua` | Đổi quyền của vai trò | 5 |
 | `vai-tro-rieng-doi-ten` | Đổi tên và mô tả | 4 |
 | `vai-tro-rieng-trang-thai-khac` | Vai trò chưa có quyền, không được đổi tên, không có quyền tạo | 3 |
+
+### Khóa màn hình bằng PIN — SuperShip Web (`flows/supership-pin/`)
+
+Bộ chụp gọn các trường hợp chính tại `/settings/security?tab=screen-lock`, tài khoản chủ shop Khả Ái. Các thay đổi cài đặt cần OTP mới; API và OTP đều giả lập, không đổi PIN hoặc gửi mã thật. Không tách từng lỗi hạ tầng hoặc từng trạng thái trung gian thành luồng riêng.
+
+| id | Nội dung | Số màn |
+| --- | --- | --- |
+| `supership-pin-thiet-lap` | Chưa bật, nhập PIN/thời gian, chọn kênh OTP, xác nhận OTP, bật thành công | 5 |
+| `supership-pin-nhap-pin-khong-hop-le` | Chưa đủ 6 chữ số, PIN dễ đoán, PIN nhập lại không khớp | 3 |
+| `supership-pin-doi-pin` | PIN mới, xác nhận OTP, lưu thành công | 3 |
+| `supership-pin-doi-thoi-gian` | Chọn thời gian mới, xác nhận OTP và lưu thành công | 2 |
+| `supership-pin-tat-pin` | Xác nhận tắt, OTP, tắt thành công | 3 |
+| `supership-pin-khoa-mo` | Màn đang làm việc, khóa ngay, nhập PIN, mở thành công | 4 |
+| `supership-pin-sai-pin` | Sai PIN, cảnh báo còn một lần, sai lần 5 phải đăng nhập lại | 3 |
+| `supership-pin-quen-pin` | Xác nhận đăng nhập lại để đặt PIN mới, màn đăng nhập | 2 |
+| `supership-pin-tu-khoa` | Không thao tác đến hạn tự khóa, mở lại bằng PIN | 2 |
+
+Luồng tự khóa dùng 10 giây để tái hiện nhanh; thiết lập thông thường mặc định 15 phút. Bộ đầy đủ 29 luồng SuperPlatform được giữ với id/stepId cũ để không làm thay đổi các Section đã có.
+
+```powershell
+.\capture --flow "supership-pin*" --no-figma
+# Mở đúng page và plugin Flow Capture trong Figma desktop trước khi gửi:
+.\capture --flow "supership-pin*"
+```
+
+### Khóa màn hình bằng PIN — SuperPlatform (`flows/superplatform-pin/`)
+
+Chỉ chụp SuperPlatform tại `/workspace/account/security?tab=screen-lock`, viewport desktop 1440 × 900, ảnh 2×. Phiên nhân viên và toàn bộ API được giả lập trong trình duyệt, không thay đổi PIN thật hoặc gửi OTP. Mỗi kịch bản là một Section con, giữ nguyên id/stepId khi chụp lại.
+
+| id (tiền tố `superplatform-pin-`) | Nội dung | Số màn |
+| --- | --- | --- |
+| `thiet-lap` | Chưa bật, form, PIN có số 0 đầu, hiện/ẩn PIN, MFA đúng/sai, mã dự phòng, bật thành công | 8 |
+| `kiem-tra-nhap-lieu` | PIN thiếu, lặp, liên tiếp, không khớp; thời gian dưới/trên giới hạn; hủy | 7 |
+| `doi-pin` | Đổi PIN, xác thực MFA mới, lưu thành công | 4 |
+| `doi-thoi-gian` | Đơn vị phút/giây, xác thực MFA, lưu | 3 |
+| `tat-pin` | Xác nhận/hủy, MFA, tắt thành công | 4 |
+| `chua-mo-tinh-nang` | Hệ thống chưa cho thiết lập PIN | 1 |
+| `chua-co-mfa` | Chưa thiết lập MFA, hủy xác thực và giữ form | 2 |
+| `loi-cai-dat-1` … `loi-cai-dat-4` | Nhận diện thiết bị, PIN yếu, timeout không hợp lệ, dịch vụ chưa khả dụng | 1 mỗi luồng |
+| `khoa-mo-thu-cong` | Khóa ngay, PIN thiếu/đủ, mở thành công | 5 |
+| `sai-pin-nam-lan` | Lần sai 1–4 với số lượt còn lại; lần 5 thu hồi phiên | 5 |
+| `loi-mo-khoa-1` … `loi-mo-khoa-3` | Giới hạn thử PIN, phiên bản trạng thái thay đổi, dịch vụ xác minh lỗi | 1 mỗi luồng |
+| `mat-mang-mo-khoa` | Retry khi mất kết nối dùng cùng attempt_id; mở thành công | 2 |
+| `mat-mang-khi-khoa` | Che nội dung trong LOCK_PENDING; kết nối lại xác nhận khóa | 2 |
+| `quen-pin` | Cảnh báo bản nháp, quay lại, kết thúc phiên để đăng nhập lại | 3 |
+| `dang-xuat` | Xác nhận, lỗi mạng, thử lại và đăng xuất thành công | 3 |
+| `tai-lai-khi-khoa` | Reload, không có bản chụp nền, hết hạn/thu hồi phiên | 3 |
+| `tu-khoa` | 10 giây không thao tác, khóa IDLE, mở lại | 3 |
+| `menu-tai-khoan` | Menu tài khoản và khóa từ menu | 2 |
+| `menu-chua-pin` | Chưa có PIN — chuyển đến thiết lập | 2 |
+| `dong-bo-tab-giu-nhap` | Hai tab thực: đồng bộ khóa/mở, giữ giá trị form chưa lưu | 3 |
+| `mo-tab-dang-khoa` | Trang mới không có bản chụp nền vẫn yêu cầu PIN | 2 |
+| `kiem-tra-phien-loi-mang` | Che nội dung khi kiểm tra phiên lỗi; phục hồi kết nối | 2 |
+| `dang-xac-minh` | Chờ máy chủ khóa, đang xác minh PIN, hoàn tất | 3 |
+| `mfa-sau-mo-khoa` | PIN đúng nhưng phiên vẫn yêu cầu hoàn tất MFA | 2 |
+
+Phạm vi là trạng thái giao diện của tính năng PIN; quy trình liên kết ứng dụng MFA và đăng nhập đầy đủ có thể dùng luồng riêng. Các quy tắc thu hồi phiên, giới hạn PIN, idempotency và phiên đồng bộ trong ảnh sử dụng API fixture, không thay thế nghiệm thu backend thật.
+
+```powershell
+.\capture --flow "superplatform-pin*" --no-figma
+# Sau khi xem ảnh, mở đúng page và Flow Capture trong Figma desktop:
+.\capture --flow "superplatform-pin*"
+```
 
 ## 9. Viết một luồng mới
 
@@ -560,4 +887,4 @@ npx tsx scripts/fake-plugin.ts   # plugin giả, để thử CLI khi không có 
 - Chưa hỗ trợ đăng nhập theo `actor` (tự đăng nhập, lưu và dùng lại phiên). Luồng khai báo `actor` bị từ chối với thông báo rõ ràng. Các trang sau đăng nhập hiện dùng `mockSignedInShop`.
 - Plugin chỉ chạy trên Figma desktop.
 - Chế độ layers và lệnh `.\capture` chỉ chạy trên Windows.
-- Chưa có luồng nào cho app `superplatform` hay viewport `mobile`; cấu hình đã sẵn, chỉ cần viết luồng.
+- App `superplatform` có nhóm khóa màn hình bằng PIN; chưa có luồng cho viewport `mobile`.
