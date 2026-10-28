@@ -438,7 +438,8 @@ export async function runFlows(options: RunOptions): Promise<FlowResult[]> {
     }
   }
 
-  const browser = await chromium.launch({ headless: !options.headed });
+  // Native date inputs follow the browser language, not the context locale: start Chromium in it too.
+  const browser = await chromium.launch({ headless: !options.headed, args: [`--lang=${options.config.locale}`] });
   const runs: VariantRun[] = [];
   const pasteDir = options.render === "layers" ? await mkdtemp(path.join(tmpdir(), "figma-flow-capture-")) : undefined;
   if (pasteDir) options = { ...options, pasteDir };

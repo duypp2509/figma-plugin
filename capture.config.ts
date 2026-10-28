@@ -25,10 +25,15 @@ export default defineConfig({
     // FigmaCaptureButton and DebugLogPanel (features/dev-tools).
     "[data-figma-capture-exclude]",
     "#__figma_capture_toolbar_host__",
+    // The same two buttons in SuperPlatform, shown when the pointer nears the bottom-right corner.
+    '[aria-label="Mở thanh chụp Figma"]',
+    '[aria-label="Mở nhật ký phát triển"]',
     // DevSeedAccounts on /login.
     'role=button[name="Tài khoản test"]',
     // Dev autofill on /register.
     'role=button[name="Tự điền dữ liệu mẫu"]',
+    // Dev sample face next to the camera (eKYC steps of SuperPlatform).
+    'role=button[name="Khuôn mặt mẫu"]',
     // Next.js dev indicator.
     "nextjs-portal",
   ],
