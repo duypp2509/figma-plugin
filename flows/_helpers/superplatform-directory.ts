@@ -479,9 +479,12 @@ export async function applyFilters(page: Page) {
 export const appliedFilters = (page: Page, count: number) =>
   page.getByRole("button", { name: `Bộ lọc, đang áp dụng ${count} tiêu chí`, exact: true });
 
-/** Parks the pointer on empty space beside the breadcrumb, so no row or button shows its hover colour in the picture. */
+/**
+ * Parks the pointer on empty space beside the breadcrumb, so no row or button shows its hover colour in the picture.
+ * Clear of "Mở bưu cục" at the top right: greyed, it would show its tooltip under the pointer.
+ */
 export async function restPointer(page: Page) {
-  await page.mouse.move(1300, 125);
+  await page.mouse.move(1000, 92);
 }
 
 /** Types a keyword and waits until the URL carries it (the page sends 0.4 s after the last key). */

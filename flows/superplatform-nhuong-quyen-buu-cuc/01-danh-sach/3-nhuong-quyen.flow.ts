@@ -54,8 +54,14 @@ export default [
     async run({ page, shot }) {
       await openDirectory(page);
       await expect(openButton(page)).toBeDisabled();
-      await page.getByText(`Bị chặn vì ${HA_DONG.name} đang tạm ngưng`).first().waitFor();
-      await shot("bi-chan", "Nút Mở bưu cục tắt; bưu cục giữ trạng thái riêng, kèm dòng Bị chặn vì…", { mode: "fullPage" });
+      // Since 28/10 a row blocked by its franchise shows the badge "Bị chặn"; why goes in the badge's tooltip.
+      const blockedBadge = page.getByText("Bị chặn", { exact: true }).first();
+      await blockedBadge.waitFor();
+      await shot("bi-chan", "Nút Mở bưu cục tắt; các bưu cục hiện huy hiệu Bị chặn", { mode: "fullPage" });
+
+      await blockedBadge.locator("xpath=ancestor::span[@tabindex][1]").focus();
+      await page.getByRole("tooltip").filter({ hasText: `Bị chặn vì ${HA_DONG.name} đang tạm ngưng` }).waitFor();
+      await shot("ly-do-bi-chan", "Trỏ vào huy hiệu Bị chặn: lý do bị chặn");
 
       // The reason of a greyed button shows in its dark tooltip on hover or focus; focus keeps it while the pointer is parked.
       // A full-page picture resizes the window, which hides the tooltip: this one is taken as the viewport.

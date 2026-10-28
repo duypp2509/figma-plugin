@@ -76,8 +76,8 @@ export default [
       await shot("buu-cuc-tam-ngung", "Bưu cục tự đang tạm ngưng: nút Kích hoạt lại tắt");
 
       await openPostOffices(page);
-      await page.getByText(`Bị chặn vì ${UNITS.hadong.name} đang tạm ngưng`, { exact: true }).first().waitFor();
-      await shot("danh-sach-buu-cuc", "Thẻ Bưu cục của nhượng quyền: các bưu cục bị chặn vì nhượng quyền");
+      await page.getByText("Bị chặn", { exact: true }).first().waitFor();
+      await shot("danh-sach-buu-cuc", "Thẻ Bưu cục của nhượng quyền: các bưu cục hiện huy hiệu Bị chặn");
 
       await openRowMenu(page, UNITS.duongNoi.name);
       await shot("menu-danh-sach", "Bấm ⋯ ở bưu cục tạm ngưng: menu thao tác");
