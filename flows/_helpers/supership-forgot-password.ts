@@ -33,8 +33,9 @@ interface Failure {
 }
 
 /** Failures a flow can ask the stand-in backend for, with the backend's own wording. */
+// PASSWORD_RESET_ACCOUNT_NOT_FOUND is gone: every well-formed number gets the same answer, and "the new password must
+// differ from the current one" is checked when the reset is confirmed, after the OTP (flow document 2.1.1, part B).
 export const FAILURES = {
-  accountNotFound: { status: 400, code: "PASSWORD_RESET_ACCOUNT_NOT_FOUND", message: "Số điện thoại này không tồn tại trong hệ thống." },
   sameAsCurrentPassword: { status: 400, code: "NEW_PASSWORD_SAME_AS_CURRENT", message: "Mật khẩu mới phải khác mật khẩu hiện tại." },
   dailyOtpLimit: { status: 429, code: "OTP_DAILY_LIMIT_EXCEEDED", message: "Bạn đã nhận nhiều mã trong hôm nay. Vui lòng thử lại sau." },
 } as const satisfies Record<string, Failure>;
@@ -159,6 +160,11 @@ export const savePasswordButton = (page: Page) => page.getByRole("button", { nam
 export const confirmOtpButton = (page: Page) => page.getByRole("button", { name: "Xác nhận", exact: true });
 /** The dialog on top: native dialogs make everything behind them inert. */
 export const openDialog = (page: Page) => page.locator("dialog[open]").last();
+/** Errors show in a "Không thể hoàn tất thao tác" dialog (FeedbackMessage) that must be closed before going on. */
+export async function dismissNotice(page: Page): Promise<void> {
+  await openDialog(page).getByRole("button", { name: "Đã hiểu", exact: true }).click();
+  await openDialog(page).getByRole("button", { name: "Đã hiểu", exact: true }).waitFor({ state: "hidden" }).catch(() => undefined);
+}
 
 const forgotPasswordLink = (page: Page) => page.getByRole("link", { name: "Quên mật khẩu?" });
 

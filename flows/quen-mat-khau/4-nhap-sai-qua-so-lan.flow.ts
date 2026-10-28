@@ -1,5 +1,5 @@
 import { defineFlow } from "../../capture";
-import { CHANNELS, HOME_STEP, openHome, goToOtpStep, groupName, mockPasswordReset, openDialog, phoneInput, submitOtp } from "../_helpers/supership-forgot-password";
+import { CHANNELS, HOME_STEP, dismissNotice, openHome, goToOtpStep, groupName, mockPasswordReset, openDialog, phoneInput, submitOtp } from "../_helpers/supership-forgot-password";
 
 // Five wrong codes block the OTP session and send the user back to the start.
 export default CHANNELS.map((channel) => defineFlow({
@@ -17,12 +17,15 @@ export default CHANNELS.map((channel) => defineFlow({
     await submitOtp(page, "111111");
     await page.getByText("Mã OTP không đúng. Bạn còn 4 lần nhập.").waitFor();
     await shot("otp-sai-lan-1", "Nhập sai mã OTP lần 1, còn 4 lần");
+    await dismissNotice(page);
 
     for (const [index, code] of ["222222", "333333", "444444"].entries()) {
       await submitOtp(page, code);
       await page.getByText(`Mã OTP không đúng. Bạn còn ${3 - index} lần nhập.`).waitFor();
+      if (index < 2) await dismissNotice(page);
     }
     await shot("otp-sai-lan-4", "Nhập sai mã OTP lần 4, còn 1 lần");
+    await dismissNotice(page);
 
     await submitOtp(page, "555555");
     await openDialog(page).getByRole("heading", { name: "Nhập sai quá số lần cho phép" }).waitFor();

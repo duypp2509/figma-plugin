@@ -24,7 +24,7 @@ export default CHANNELS.map((channel) => defineFlow({
     await openDialog(page).getByText("Gửi lại mã OTP?").waitFor();
     await shot("xac-nhan-gui-lai", "Xác nhận gửi lại mã OTP");
 
-    await openDialog(page).getByRole("button", { name: "Gửi lại", exact: true }).click();
+    await openDialog(page).getByRole("button", { name: "Xác nhận", exact: true }).click();
     await page.getByRole("timer").waitFor();
     await shot("da-gui-lai", "Đã gửi lại mã OTP, hết lượt gửi lại");
 

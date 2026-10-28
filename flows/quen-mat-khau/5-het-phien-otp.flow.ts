@@ -27,8 +27,8 @@ export default CHANNELS.map((channel) => defineFlow({
     await shot("nhap-ma-sau-khi-het-phien", "Nhập mã sau khi hết phiên");
 
     await confirmOtpButton(page).click();
-    await openDialog(page).getByRole("heading", { name: "Phiên nhận mã đã kết thúc" }).waitFor();
-    await shot("phien-da-ket-thuc", "Thông báo phiên nhận mã đã kết thúc");
+    await openDialog(page).getByRole("heading", { name: "Mã OTP đã hết hạn" }).waitFor();
+    await shot("phien-da-ket-thuc", "Mã OTP đã hết hạn, làm lại từ đầu");
 
     await openDialog(page).getByRole("button", { name: "Đã hiểu" }).click();
     await phoneInput(page).waitFor();
