@@ -4,7 +4,7 @@ import {
 } from "../_helpers/supership-my-invitations";
 
 // The invitations a signed-in person received from shops ("Lời mời" in the sidebar): looking at the ones
-// still waiting, the history of the others, accepting one, declining one (both confirmed with an OTP),
+// still waiting, the history of the others, accepting one (confirmed with a code sent by OTP), declining one,
 // a wrong code, and accepting one the shop has withdrawn meanwhile. The backend is a stand-in (see mockMyInvitations).
 const WITHDRAWN = "Lời mời không còn hiệu lực. Vui lòng liên hệ cửa hàng đã mời bạn để nhận lời mời mới.";
 
@@ -65,18 +65,18 @@ export default [
       await shot("xac-nhan-chap-nhan", "Xác nhận chấp nhận lời mời");
 
       await openDialog(page).getByRole("button", { name: "Xác nhận", exact: true }).click();
-      await otpDialog(page).getByRole("button", { name: "Gửi mã OTP" }).waitFor();
-      await shot("chon-kenh-nhan-otp", "Chọn nơi nhận mã OTP để xác nhận chấp nhận lời mời");
+      await otpDialog(page).getByRole("button", { name: "Gửi mã", exact: true }).waitFor();
+      await shot("chon-kenh-nhan-otp", "Chọn nơi nhận mã xác thực để chấp nhận lời mời");
 
       await sendOtp(page);
-      await shot("nhap-ma-otp", "Nhập mã OTP");
+      await shot("nhap-ma-otp", "Nhập mã xác thực vừa gửi");
 
       await typeOtp(page, DEV_OTP);
-      await shot("da-nhap-ma-otp", "Đã nhập mã OTP");
+      await shot("da-nhap-ma-otp", "Đã nhập mã xác thực");
 
       await confirmOtp(page);
       const joined = `Đã tham gia ${MOC_MIEN.shop}.`;
-      await dialogSaying(page, joined).getByRole("button", { name: "Xác nhận", exact: true }).waitFor();
+      await dialogSaying(page, joined).getByRole("button", { name: "Đã hiểu" }).waitFor();
       await shot("chap-nhan-thanh-cong", "Chấp nhận lời mời thành công");
       await acknowledge(page, joined);
 
@@ -101,18 +101,9 @@ export default [
       await openDialog(page).getByText("Từ chối lời mời?").waitFor();
       await shot("xac-nhan-tu-choi", "Xác nhận từ chối lời mời");
 
+      // Declining asks no code: the answer goes once confirmed.
       await openDialog(page).getByRole("button", { name: "Xác nhận", exact: true }).click();
-      await otpDialog(page).getByRole("button", { name: "Gửi mã OTP" }).waitFor();
-      await shot("chon-kenh-nhan-otp", "Chọn nơi nhận mã OTP để xác nhận từ chối lời mời");
-
-      await sendOtp(page);
-      await shot("nhap-ma-otp", "Nhập mã OTP");
-
-      await typeOtp(page, DEV_OTP);
-      await shot("da-nhap-ma-otp", "Đã nhập mã OTP");
-
-      await confirmOtp(page);
-      await dialogSaying(page, "Đã từ chối lời mời.").getByRole("button", { name: "Xác nhận", exact: true }).waitFor();
+      await dialogSaying(page, "Đã từ chối lời mời.").getByRole("button", { name: "Đã hiểu" }).waitFor();
       await shot("tu-choi-thanh-cong", "Từ chối lời mời thành công");
       await acknowledge(page, "Đã từ chối lời mời.");
 
@@ -135,7 +126,7 @@ export default [
 
       await invitationRow(page, MOC_MIEN).getByRole("button", { name: "Chấp nhận lời mời" }).click();
       await openDialog(page).getByRole("button", { name: "Xác nhận", exact: true }).click();
-      await otpDialog(page).getByRole("button", { name: "Gửi mã OTP" }).waitFor();
+      await otpDialog(page).getByRole("button", { name: "Gửi mã", exact: true }).waitFor();
       await sendOtp(page);
       await typeOtp(page, "111111");
       await shot("da-nhap-ma-sai", "Đã nhập mã OTP sai");
@@ -165,9 +156,9 @@ export default [
       await shot("xac-nhan-chap-nhan", "Xác nhận chấp nhận lời mời");
 
       await openDialog(page).getByRole("button", { name: "Xác nhận", exact: true }).click();
-      await dialogSaying(page, "Không thể hoàn tất thao tác").getByRole("button", { name: "Đã hiểu" }).waitFor();
+      await dialogSaying(page, WITHDRAWN).getByRole("button", { name: "Đã hiểu" }).waitFor();
       await shot("khong-chap-nhan-duoc", "Không chấp nhận được lời mời");
-      await acknowledge(page, "Không thể hoàn tất thao tác");
+      await acknowledge(page, WITHDRAWN);
 
       // The list was read again: the invitation is no longer waiting.
       await invitationRow(page, MOC_MIEN).waitFor({ state: "detached" });

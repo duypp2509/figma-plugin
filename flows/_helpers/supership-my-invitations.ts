@@ -1,10 +1,11 @@
 // Fixtures, a stateful stand-in backend and steps for the invitations a signed-in person received
 // (SuperShip Web, /settings/invitations — "Lời mời" in the sidebar): the ones still waiting, to accept
-// or decline, and the history of the ones that are not. Answering one must first be confirmed with an
-// OTP sent to the account's phone number; the confirmation then holds for the rest of the flow.
+// or decline, and the history of the ones that are not. Shop and employee invitations share the panel.
+// Accepting a shop invitation asks its own code (403 STEP_UP_REQUIRED, an OTP sent to the account's phone);
+// declining asks none.
 //
-// Components: MemberInvitationInbox, MemberInvitationHistory and InvitationResponseConfirmation
-// (features/member-invitations), MfaChallengeHost and OtpStepUpForm (features/mfa). The person is the owner of the seed's Khả Ái
+// Components: InvitationInbox, MemberInvitationInbox, MemberInvitationHistory (features/member-invitations),
+// EmployeeInvitationInbox (features/employee-invitation-inbox), StepUpHost (features/mfa). The person is the owner of the seed's Khả Ái
 // shop, invited by other shops.
 import type { Page } from "playwright";
 import { defineFlow, type FlowContext, type FlowDefinition } from "../../capture";
@@ -62,6 +63,23 @@ const PAST = [
     "CANCELLED", { close_reason: "CANCELLED_BY_INVITER", responded_at: at("2026-08-11T15:45:00") }),
 ];
 
+/**
+ * Invitations to work as an employee of a SuperShip unit, listed in the same panel since 27/10/2026 (one panel for
+ * both kinds). The page reads them from /v1/me/employee-invitations; the person here only looks at them.
+ */
+export const GO_VAP = "Bưu cục SuperShip Gò Vấp";
+const employeeInvitation = (id: string, unit: string, status: Status, sentAt: string, extra: Record<string, unknown> = {}) => ({
+  id, invitation_type: "JOIN", invitation_type_label: "Mời vào làm", organization_id: `org-${id}`, organization_name: unit,
+  organization_code: null, employee_number: "BCGV0412", job_position_code: "DELIVERY_STAFF", job_position_name: "Nhân viên giao nhận",
+  status, status_label: { PENDING: "Chờ trả lời", ACCEPTED: "Đã chấp nhận", DECLINED: "Đã từ chối", EXPIRED: "Hết hạn", CANCELLED: "Đã hủy" }[status],
+  created_at: sentAt, expires_at: new Date(Date.parse(sentAt) + WEEK_MS).toISOString(), responded_at: null,
+  role_names: ["Nhân viên giao nhận"], valid_from: at("2026-10-15T00:00:00"),
+  inviter: { name: "Phạm Gia Huy", position_title: "Trưởng bưu cục", organization_name: unit },
+  accept_confirmation: { title: `Chấp nhận làm việc tại ${unit}?`, lines: ["Chức vụ: Nhân viên giao nhận. Vai trò: Nhân viên giao nhận. Bắt đầu: 15/10/2026."], confirm_label: "Xác nhận", cancel_label: "Hủy" },
+  decline_confirmation: { title: `Từ chối lời mời làm việc tại ${unit}?`, lines: [], confirm_label: "Xác nhận từ chối", cancel_label: "Hủy" },
+  ...extra,
+});
+
 export interface MyInvitationsMock {
   /** Leaves the person with no waiting invitation and, with `history`, no past one either. */
   clear(history?: boolean): void;
@@ -80,6 +98,9 @@ export async function mockMyInvitations(page: Page, backend: Backend): Promise<M
   await page.clock.setFixedTime(NOW);
   let waiting = [MOC_MIEN, HA_VY].map((fixture) => ({ fixture, unverifiedEmail: false }));
   let history = [...PAST];
+  let employeeWaiting = [employeeInvitation("my-emp-go-vap", GO_VAP, "PENDING", at("2026-10-04T10:20:00"))];
+  let employeeHistory = [employeeInvitation("my-emp-tan-binh", "Bưu cục SuperShip Tân Bình", "EXPIRED", at("2026-09-02T08:00:00"),
+    { employee_number: "BCTB0388" })];
   const close = (id: string, status: Status, extra: Record<string, unknown> = {}) => {
     const entry = waiting.find((candidate) => candidate.fixture.id === id);
     if (!entry) return null;
@@ -90,11 +111,18 @@ export async function mockMyInvitations(page: Page, backend: Backend): Promise<M
   };
   const notFound = { status: 404, code: "MEMBER_INVITATION_NOT_FOUND", message: "Không tìm thấy lời mời." };
 
-  // Answering an invitation is refused until this session has confirmed with an OTP.
-  let confirmed = false;
+  // Accepting asks its own code each time (StepUpGuard): the dialog sends an OTP for the challenge, then repeats the
+  // request with the challenge and the code in headers.
   const otp = new OtpSessionMock("capture-step-up", MASKED_PHONE, () => NOW);
-  const confirmationRequired = (answer: string) => ({
-    status: 403, code: "MFA_REQUIRED", message: `Cần xác nhận bằng mã OTP để ${answer} lời mời tham gia cửa hàng.`,
+  const stepUpRequired = {
+    status: 403, code: "STEP_UP_REQUIRED", message: "Vui lòng xác nhận thao tác.",
+    data: { challenge_id: "capture-step-up", action: "MEMBER_INVITATION_ACCEPT", summary: "Chấp nhận lời mời vào Shop",
+      method: "OTP", expires_at: new Date(NOW + 300_000).toISOString() },
+  };
+  backend.on("POST", /^\/v1\/me\/step-up\/challenges\/[^/]+\/otp$/, (request) => {
+    otp.start(String((request.postDataJSON() as { channel?: string } | null)?.channel ?? "SMS"));
+    return { data: { challenge_id: otp.id, channel: "SMS", masked_destination: MASKED_PHONE, expires_at: otp.expiresAt,
+      resend_available_at: otp.resendAvailableAt } };
   });
   backend.on("GET", /^\/v1\/me\/mfa$/, () => ({
     data: {
@@ -103,16 +131,6 @@ export async function mockMyInvitations(page: Page, backend: Backend): Promise<M
       enrollment_channels: [{ channel: "PHONE", masked_destination: MASKED_PHONE }],
     },
   }));
-  backend.on("POST", /^\/v1\/me\/step-up\/otp$/, (request) => {
-    otp.start(String((request.postDataJSON() as { channel?: string } | null)?.channel ?? "SMS"));
-    return { data: { challenge_id: otp.id, channel: "PHONE", masked_destination: MASKED_PHONE, expires_at: otp.expiresAt, resend_available_at: otp.resendAvailableAt } };
-  });
-  backend.on("POST", /^\/v1\/me\/step-up\/otp\/verify$/, (request) => {
-    const wrong = otp.verify((request.postDataJSON() as { otp_code?: string }).otp_code);
-    if (wrong) return wrong;
-    confirmed = true;
-    return { data: { otp_step_up_expires_at: new Date(NOW + 300_000).toISOString() } };
-  });
   backend.on("GET", /^\/v1\/otp-sessions\/[^/]+$/, () => ({ data: otp.snapshot() }));
   backend.on("POST", /^\/v1\/otp-sessions\/delivery$/, (request) => {
     const result = otp.deliver(request.postDataJSON() as Record<string, unknown>);
@@ -131,16 +149,26 @@ export async function mockMyInvitations(page: Page, backend: Backend): Promise<M
   backend.on("GET", /^\/v1\/me\/member-invitations\/history$/, () => ({
     data: { items: history, page: 0, size: 10, total_items: history.length, total_pages: 1 },
   }));
-  backend.on("POST", /^\/v1\/me\/member-invitations\/([^/]+)\/accept$/, (_request, match) => {
-    if (!confirmed) return confirmationRequired("chấp nhận");
+  backend.on("POST", /^\/v1\/me\/member-invitations\/([^/]+)\/accept$/, (request, match) => {
+    const code = request.headers()["x-step-up-code"];
+    if (!code) return stepUpRequired;
+    const wrong = otp.verify(code);
+    if (wrong) return wrong;
     const accepted = close(match[1]!, "ACCEPTED", { resulting_membership_id: `membership-${match[1]}` });
     return accepted ? { data: { invitation: accepted, membership_id: `membership-${match[1]}`, access_provisioning: "DONE" } } : notFound;
   });
   backend.on("POST", /^\/v1\/me\/member-invitations\/([^/]+)\/decline$/, (_request, match) => {
-    if (!confirmed) return confirmationRequired("từ chối");
     const declined = close(match[1]!, "DECLINED");
     return declined ? { data: declined } : notFound;
   });
+  backend.on("GET", /^\/v1\/me\/employee-invitations$/, () => ({
+    message: employeeWaiting.length ? "Danh sách lời mời của bạn." : "Bạn không có lời mời nào đang chờ.", data: employeeWaiting,
+  }));
+  backend.on("GET", /^\/v1\/me\/employee-invitations\/history$/, () => ({
+    data: { items: employeeHistory, page: 0, size: 20, total: employeeHistory.length },
+  }));
+  backend.on("GET", /^\/v1\/me\/employee-invitations\/count$/, () => ({ data: { pending: employeeWaiting.length } }));
+  backend.on("GET", /^\/v1\/me\/employee-invitations\/answered$/, () => ({ data: [] }));
   // Read again after joining a shop, so the new working unit can be chosen.
   backend.on("GET", /^\/v1\/me\/memberships$/, () => ({
     data: [{
@@ -151,7 +179,7 @@ export async function mockMyInvitations(page: Page, backend: Backend): Promise<M
   }));
 
   return {
-    clear: (alsoHistory = false) => { waiting = []; if (alsoHistory) history = []; },
+    clear: (alsoHistory = false) => { waiting = []; employeeWaiting = []; if (alsoHistory) { history = []; employeeHistory = []; } },
     sentToUnverifiedEmail: (fixture) => { waiting = waiting.map((entry) => entry.fixture === fixture ? { ...entry, unverifiedEmail: true } : entry); },
     withdraw: (fixture) => { close(fixture.id, "CANCELLED", { close_reason: "CANCELLED_BY_INVITER" }); },
   };
@@ -206,15 +234,14 @@ export async function acknowledge(page: Page, text: string | RegExp): Promise<vo
   await notice.waitFor({ state: "detached" });
 }
 
-/** The dialog that asks for the OTP before an invitation is answered. */
-export const otpDialog = (page: Page) => dialogSaying(page, "Thao tác này cần xác nhận bằng mã OTP.");
-export const otpInput = (page: Page) => otpDialog(page).getByRole("textbox", { name: /^Mã OTP/ });
+/** The code dialog of a sensitive action ("Xác nhận thao tác"), opened when accepting asks its code. */
+export const otpDialog = (page: Page) => dialogSaying(page, "Xác nhận thao tác");
+export const otpInput = (page: Page) => page.locator("#step-up-code");
 
-/** From the dialog's choice of where the code goes to the step that asks for the code. */
+/** From the dialog's choice of where the code goes ("Gửi mã") to the step that asks for the code. */
 export async function sendOtp(page: Page): Promise<void> {
-  await otpDialog(page).getByRole("button", { name: "Gửi mã OTP" }).click();
-  await otpDialog(page).getByText("Đã gửi mã OTP tới").waitFor();
-  await otpDialog(page).getByRole("timer").waitFor();
+  await otpDialog(page).getByRole("button", { name: "Gửi mã", exact: true }).click();
+  await otpDialog(page).getByText("Nhập mã xác thực vừa gửi tới").waitFor();
 }
 
 /** Replaces whatever is in the code field; the field keeps the caret at the end, so erase key by key. */

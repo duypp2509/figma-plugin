@@ -295,7 +295,7 @@ Các luồng bên dưới dùng app `supership` hoặc `superplatform` ở viewp
 | Đăng ký Shop (backend thật) | `--flow dang-ky-shop` | 1 | 4 | Không có |
 | Quên mật khẩu | `--flow "quen-mat-khau*"` | 11 | 72 | QUÊN MẬT KHẨU - ĐẶT LẠI MẬT KHẨU DÙNG OTP QUA SMS, và … QUA ZALO |
 | Chấp nhận lời mời tham gia shop (chưa có tài khoản) | `--flow "loi-moi-shop*"` | 11 | 70 | CHẤP NHẬN LỜI MỜI THAM GIA SHOP (CHƯA CÓ TÀI KHOẢN) - XÁC THỰC OTP QUA SMS, và … QUA ZALO |
-| Lời mời của tôi | `--flow "loi-moi-cua-toi*"` | 6 | 29 | LỜI MỜI THAM GIA CỦA TÔI |
+| Lời mời của tôi | `--flow "loi-moi-cua-toi*"` | 6 | 26 | LỜI MỜI THAM GIA CỦA TÔI |
 | Xác thực email | `--flow "xac-thuc-email*"` | 3 | 14 | THÔNG TIN TÀI KHOẢN - XÁC THỰC EMAIL |
 | Thông tin cửa hàng | `--flow "thong-tin-cua-hang*"` | 3 | 13 | THÔNG TIN CỬA HÀNG |
 | Thành viên cửa hàng | `--flow "thanh-vien-shop*"` | 28 | 108 | THÀNH VIÊN CỬA HÀNG |
@@ -311,6 +311,7 @@ Các luồng bên dưới dùng app `supership` hoặc `superplatform` ở viewp
 | Hồ sơ của tôi — SuperPlatform (4 nhóm con, xem bên dưới) | `--flow "superplatform-ho-so-cua-toi*"` | 30 | 104 | SUPERPLATFORM → HỒ SƠ CỦA TÔI → 4 Section con |
 | Nhượng quyền và bưu cục — SuperPlatform (10 nhóm con, xem bên dưới) | xem [mục bên dưới](#nhượng-quyền-và-bưu-cục--superplatform-flowssuperplatform-nhuong-quyen-buu-cuc) | 80 | | SUPERPLATFORM — NHƯỢNG QUYỀN VÀ BƯU CỤC → 01 … 10 |
 | Yêu cầu xác minh — SuperPlatform | `--flow "superplatform-yeu-cau-xac-minh*"` | 12 | 75 | SUPERPLATFORM — YÊU CẦU XÁC MINH |
+| Lời mời của tôi — SuperPlatform | `--flow "superplatform-loi-moi-cua-toi*"` | 7 | 33 | SUPERPLATFORM → LỜI MỜI CỦA TÔI |
 
 Mọi nhóm trừ `dang-ky-shop` dùng backend giả lập: không tạo tài khoản hay cửa hàng, không gửi OTP, chạy lại bao nhiêu lần cũng được. Câu báo lỗi trong các nhánh thất bại được chép từ mã nguồn backend. Các luồng có ngày giờ hay bộ đếm ngược đều đứng đồng hồ của trang, nên ảnh giống nhau giữa các lần chạy.
 
@@ -645,16 +646,32 @@ Thêm `loi-moi-shop-truong-hop-khac` (10 màn): lời mời hết hiệu lực, 
 
 ### Lời mời của tôi (`flows/loi-moi-cua-toi/`)
 
-Mục "Lời mời" trên sidebar, trang `/settings/invitations`.
+Mục "Lời mời" trên sidebar, trang `/settings/invitations`. Từ 27/10/2026 trang gộp lời mời vào shop và lời mời làm nhân viên vào một danh sách; chấp nhận lời mời vào shop đòi mã xác thực riêng (hộp "Xác nhận thao tác", mã OTP), từ chối không đòi mã.
 
 | id | Số màn |
 | --- | --- |
 | `loi-moi-cua-toi-xem` | 3 |
 | `loi-moi-cua-toi-lich-su` | 3 |
 | `loi-moi-cua-toi-chap-nhan` | 8 |
-| `loi-moi-cua-toi-tu-choi` | 8 |
+| `loi-moi-cua-toi-tu-choi` | 5 |
 | `loi-moi-cua-toi-nhap-sai-otp` | 3 |
 | `loi-moi-cua-toi-chap-nhan-that-bai` | 4 |
+
+Các bước cũ không còn từ 29/10 (`chon-kenh-nhan-otp`, `nhap-ma-otp`, `da-nhap-ma-otp` của `loi-moi-cua-toi-tu-choi`) sẽ hiện ở cuối Section với tiền tố `⚠ không còn trong luồng`.
+
+### Lời mời của tôi — SuperPlatform (`flows/superplatform-loi-moi-cua-toi/`)
+
+Mục "Lời mời tham gia" trong menu tài khoản, trang `/workspace/account/invitations` ("Lời mời của tôi"): lời mời làm nhân viên gửi tới nhân viên đang đăng nhập. Chấp nhận: xem lại thông tin và đồng ý, chụp khuôn mặt khi lời mời cần, rồi nhập mã Authenticator; từ chối: chọn lý do (Lý do khác thì ghi rõ), không đòi mã.
+
+| id (tiền tố `superplatform-loi-moi-cua-toi-`) | Nội dung | Số màn |
+| --- | --- | --- |
+| `xem` | Mở từ menu tài khoản, danh sách đang chờ, không có lời mời | 3 |
+| `lich-su` | Lịch sử (đã chấp nhận, đã từ chối, hết hạn, đã hủy), lịch sử trống | 3 |
+| `chap-nhan` | Xem lại thông tin, đồng ý, nhập mã, thành công, danh sách và lịch sử sau đó | 8 |
+| `chap-nhan-xac-thuc-khuon-mat` | Lời mời điều chuyển cần chụp khuôn mặt trước khi nhập mã | 6 |
+| `tu-choi` | Chưa chọn lý do, Lý do khác chưa ghi, đã ghi, thành công, lịch sử | 7 |
+| `nhap-sai-ma` | Nhập sai mã xác thực khi chấp nhận | 3 |
+| `het-han` | Lời mời hết hạn khi bấm chấp nhận, danh sách đọc lại | 3 |
 
 ### Xác thực email (`flows/thong-tin-tai-khoan/`)
 

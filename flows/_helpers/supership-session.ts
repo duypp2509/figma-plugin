@@ -25,7 +25,7 @@ export const KHA_AI_SHOP: ShopFixture = {
 export interface Reply {
   status?: number;
   data?: unknown;
-  /** For a failure: the backend's `data.code` and message. */
+  /** For a failure: the backend's `data.code` (merged with `data`, e.g. a step-up challenge) and message; a success may carry the server's sentence too. */
   code?: string;
   message?: string;
 }
@@ -56,7 +56,7 @@ export interface Backend extends MockedApi {
   api(basePath: string): Promise<MockedApi>;
 }
 
-const ok = (data: unknown) => ({ status: 200, json: { error: false, message: null, data } });
+const ok = (data: unknown, message: string | null = null) => ({ status: 200, json: { error: false, message, data } });
 
 interface Registered { method: string; path: RegExp; handler: Handler }
 
@@ -73,9 +73,11 @@ async function routeApi(page: Page, basePath: string, handlers: Registered[], un
       const reply = await handler(request, match);
       if (reply.status && reply.status >= 400) {
         // Without a message the app shows its own wording for a failed request.
-        return route.fulfill({ status: reply.status, json: { error: true, message: reply.message ?? null, data: reply.code ? { code: reply.code } : null } });
+        return route.fulfill({ status: reply.status, json: { error: true, message: reply.message ?? null,
+          data: reply.code ? { code: reply.code, ...(reply.data as object | undefined) } : reply.data ?? null } });
       }
-      return route.fulfill(ok(reply.data ?? {}));
+      // A handler that answers `data: null` (nothing there) keeps it; one that leaves `data` out gets an empty object.
+      return route.fulfill(ok("data" in reply ? reply.data ?? null : {}, reply.message ?? null));
     }
     const call = `${request.method()} ${path}`;
     if (!unexpected.includes(call)) { unexpected.push(call); log(`chưa giả lập: ${label}${call}`); }
@@ -166,6 +168,21 @@ export async function mockSignedInShop(page: Page, shop: ShopFixture, permission
       active_context: { ...activeContext, context_version: 1 }, access_token: "capture-access-token", token_type: "Bearer",
       expires_in: 600, access_token_expires_at: new Date(Date.now() + 600_000).toISOString(),
     },
+  }));
+  // Screen lock off: the shell reads it before it shows a signed-in page (the screen-lock flows answer it themselves).
+  backend.on("GET", /^\/v1\/me\/screen-lock$/, () => ({
+    data: {
+      enabled: false, enrollment_available: true, state: "DISABLED", timeout_seconds: 900, timeout_min_seconds: 10,
+      timeout_max_seconds: 900, remaining_attempts: 5, state_version: 1, session_id: session.sessionId,
+      server_time: new Date(now).toISOString(), lock_deadline: null,
+    },
+  }));
+  // Also read by the shell on every signed-in page: sign-in by QR off, no profile change waiting, no employee invitation.
+  backend.on("GET", /^\/v1\/auth\/customer\/qr-login\/settings$/, () => ({ data: { enabled: false, phone_approval: false, poll_interval_ms: 2000 } }));
+  backend.on("GET", /^\/v1\/me\/profile-update-request$/, () => ({ data: null }));
+  backend.on("GET", /^\/v1\/me\/employee-invitations\/count$/, () => ({ data: { pending: 0 } }));
+  backend.on("GET", /^\/v1\/public\/apps\/current$/, () => ({
+    data: { id: "app-supership", code: "SUPERSHIP", name: "SuperShip", app_group: "CUSTOMER", status: "ACTIVE" },
   }));
   backend.on("GET", /^\/v1\/me\/profile$/, () => ({
     data: {
