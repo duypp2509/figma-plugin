@@ -75,7 +75,7 @@ Chưa từng import plugin: Plugins → Development → Import plugin from manif
 | --- | --- | --- |
 | `net::ERR_CONNECTION_REFUSED` | App không chạy | Nhờ người dùng bật app |
 | `Timeout … waiting for locator` | Nhãn hay cấu trúc màn hình của app đã đổi | Sửa luồng theo skill `tao-luong` |
-| `Phần tử vẫn bị khóa` | Captcha chưa qua | Kiểm tra mạng tới Cloudflare; xem mục Captcha trong README |
+| `Phần tử vẫn bị khóa` | Captcha chưa qua | Kiểm tra mạng tới Cloudflare; xem mục Captcha trong [docs/writing-flows.md](../../../docs/writing-flows.md#captcha) |
 | `Plugin Figma không kết nối` / `đã ngắt kết nối` | Plugin chưa mở hoặc bị đóng | Nhắc bước 4 rồi chạy lại luồng đó |
 | Dòng `chưa giả lập: GET /v1/…` trong đầu ra | App gọi API mà luồng chưa giả lập | Bổ sung theo skill `tao-luong` |
 

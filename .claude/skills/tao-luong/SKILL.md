@@ -7,7 +7,7 @@ description: Viết luồng chụp mới (file *.flow.ts) hoặc sửa luồng �
 
 Một luồng là một file TypeScript điều khiển trình duyệt bằng Playwright và gọi `shot()` ở mỗi màn cần chụp. Phần khó không nằm ở thao tác bấm mà ở chỗ làm cho app hiện đúng màn hình mà không cần backend thật: mọi luồng ở đây trả lời các lời gọi API ngay trong trình duyệt.
 
-Tài liệu tham chiếu đầy đủ về `defineFlow`, `shot()` và các helper: mục 9 của [README.md](../../../README.md). Đọc nó trước khi viết luồng đầu tiên.
+Tài liệu tham chiếu đầy đủ về `defineFlow`, `shot()` và các helper: [docs/writing-flows.md](../../../docs/writing-flows.md). Đọc nó trước khi viết luồng đầu tiên.
 
 ## 1. Làm rõ cần chụp gì
 
@@ -118,6 +118,6 @@ Bí timeout mà không rõ vì sao: chạy thêm `--headed`, hoặc nhờ ngư�
 
 ## 7. Hoàn tất
 
-1. Cập nhật bảng luồng ở mục 8 của README (nhóm, id, số màn).
+1. Cập nhật bảng luồng trong [docs/flows.md](../../../docs/flows.md) (nhóm, lệnh chạy, số luồng, Section cha).
 2. Báo cho người dùng: các luồng đã thêm hoặc sửa, số màn mỗi luồng, thư mục ảnh, và điều gì bạn chưa kiểm chứng được.
 3. Hỏi họ có muốn đưa sang Figma không. Có thì làm theo skill `chup-luong` từ bước 4.

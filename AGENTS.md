@@ -1,62 +1,64 @@
-# figma-flow-capture: hướng dẫn cho công cụ AI
+# figma-flow-capture: instructions for AI agents
 
-Công cụ này chạy từng luồng người dùng trên app bằng Playwright, chụp màn hình ở mỗi bước và dựng thành Section trong Figma. Tài liệu cho người dùng ở [README.md](README.md); file này là phần AI cần biết trước khi làm việc trong repo.
+This tool runs user flows against an app with Playwright, screenshots every step and builds them into Sections in Figma. User documentation is in [README.md](README.md); this file is what an agent must know before working in the repository.
 
 ```
-CLI (capture/, Playwright)  →  server trung chuyển 127.0.0.1:8765 (server/)  →  plugin Flow Capture trong Figma desktop (plugin/)
+CLI (capture/, Playwright)  →  relay 127.0.0.1:8765 (server/)  →  Flow Capture plugin in Figma desktop (plugin/)
 ```
 
-## Hai việc người dùng hay nhờ
+## Common tasks
 
-| Việc | Quy trình phải theo |
+| Task | Workflow to follow |
 | --- | --- |
-| Chụp luồng đã có, đưa vào Figma hoặc lưu ra đĩa | [.claude/skills/chup-luong/SKILL.md](.claude/skills/chup-luong/SKILL.md) |
-| Viết luồng mới, hoặc sửa luồng đang lỗi | [.claude/skills/tao-luong/SKILL.md](.claude/skills/tao-luong/SKILL.md) |
+| Capture existing flows, to Figma or to disk | [.claude/skills/chup-luong/SKILL.md](.claude/skills/chup-luong/SKILL.md) |
+| Write a new flow, or fix a broken one | [.claude/skills/tao-luong/SKILL.md](.claude/skills/tao-luong/SKILL.md) |
 
-Claude Code tự nạp hai quy trình này dưới dạng skill. Công cụ khác: đọc file tương ứng trước khi bắt đầu.
+Claude Code loads these as skills. Other agents: read the matching file before starting.
 
-## Lệnh
+Reference: [docs/writing-flows.md](docs/writing-flows.md) (flow API, helpers, mocking) and [docs/flows.md](docs/flows.md) (flow catalog).
 
-Chạy từ thư mục gốc của repo. Trong PowerShell dùng `.\capture`; trong bash dùng `./capture.cmd`. Không dùng `npm run capture -- <cờ>` trong PowerShell: dấu `--` bị nuốt.
+## Commands
 
-| Lệnh | Tác dụng |
+Run from the repository root. In PowerShell use `.\capture`; in bash use `./capture.cmd`. Do not use `npm run capture -- <flags>` in PowerShell: the `--` is swallowed.
+
+| Command | Purpose |
 | --- | --- |
-| `.\capture --doctor --json` | Máy đã sẵn sàng chưa: Chromium, plugin, app có đang chạy, mã nguồn app ở đâu |
-| `.\capture --list --json` | Mọi luồng: `id`, `name`, `group`, `figmaSections`, `file`, `caution` |
-| `.\capture --flow <id> --no-figma` | Chụp và chỉ lưu ảnh vào `captures/<id>/` |
-| `.\capture --flow <id>` | Chụp và gửi sang Figma (plugin phải đang mở) |
-| `.\capture --flow "<tiền-tố>*"` | Mọi luồng có id bắt đầu bằng tiền tố |
-| `.\capture --all` | Mọi luồng, trừ luồng có `caution` |
-| `.\web` | Trang `http://127.0.0.1:4646` cho người dùng: xem ảnh trong `captures/`, chọn nhiều luồng gửi sang Figma, chụp lại (`--no-figma`). Giữ relay 8765 nếu chưa ai giữ |
-| `npm run typecheck` | Kiểm tra kiểu sau khi sửa code |
+| `.\capture --doctor --json` | Readiness: Chromium, plugin, whether the apps are running, where the app sources are |
+| `.\capture --list --json` | Every flow: `id`, `name`, `group`, `figmaSections`, `file`, `caution` |
+| `.\capture --flow <id> --no-figma` | Capture to `captures/<id>/` only |
+| `.\capture --flow <id>` | Capture and send to Figma (the plugin must be open) |
+| `.\capture --flow "<prefix>*"` | Every flow whose id starts with the prefix |
+| `.\capture --all` | Every flow except those with a `caution` |
+| `.\web` | Local viewer at `http://127.0.0.1:4646`: browse `captures/`, send selected flows to Figma, re-capture (`--no-figma`). Holds the 8765 relay if nobody else does |
+| `npm run typecheck` | Type-check after editing code |
 
-Sau mỗi lần chạy, kết quả nằm ở `captures/_last-run.json` (trạng thái từng luồng, danh sách ảnh, đường dẫn `_loi.png` và `_loi.log` nếu lỗi). Đọc file này thay vì dò chữ trong terminal. Lệnh thoát mã khác 0 khi có luồng chưa hoàn tất.
+After each run, results are in `captures/_last-run.json` (status per flow, screenshot list, `_loi.png` and `_loi.log` paths on failure). Read this file instead of parsing terminal output. The command exits non-zero when any flow did not complete.
 
-## Quy tắc bắt buộc
+## Mandatory rules
 
-1. **Luôn chọn luồng rõ ràng** bằng `--flow` hoặc `--all`. `.\capture` không kèm cờ là menu cho người dùng; chạy không có terminal thì nó báo lỗi.
-2. **Luồng có `caution` gây hậu quả thật** (ví dụ `dang-ky-shop` tạo tài khoản và tốn OTP). Chỉ chạy khi người dùng yêu cầu đúng luồng đó và đã được nhắc lại hậu quả. Dùng bản giả lập (`dang-ky-shop-mock`) cho mọi trường hợp khác.
-3. **Không sửa code của app.** Mã nguồn app và backend (đường dẫn trong `--doctor`) chỉ để đọc: lấy nhãn, route, API, câu báo lỗi.
-4. **Chụp ra đĩa và tự xem ảnh trước** (`--no-figma`, rồi mở các file PNG). Chỉ gửi sang Figma khi ảnh đã đúng và người dùng đồng ý.
-5. **Gửi sang Figma cần người dùng làm tay**: mở đúng file và page trong Figma desktop, chạy plugin Flow Capture, giữ cửa sổ plugin mở. AI không mở được plugin; hãy nhắc người dùng rồi mới chạy. CLI chờ plugin tối đa 2 phút.
-6. **`--render layers --auto-paste` chiếm quyền bàn phím** của máy trong lúc dán. Chỉ dùng khi người dùng đã biết và đồng ý để yên máy.
-7. **Mỗi lần chạy xóa và ghi lại `captures/<id>/`** của các luồng được chạy.
-8. **Giữ nguyên `id` luồng và `stepId`** của luồng đã có: chúng là khóa của Section và frame trên Figma, đổi là tạo bản mới thay vì cập nhật.
-9. **Thêm, bớt hay đổi luồng thì cập nhật bảng ở mục 8 của README.**
+1. **Always select flows explicitly** with `--flow` or `--all`. A bare `.\capture` is the interactive menu; without a TTY it fails.
+2. **Flows with a `caution` have real side effects** (e.g. `dang-ky-shop` creates an account and consumes an OTP). Run one only when the user asks for that exact flow and has been reminded of the consequences. Use the mocked variant (`dang-ky-shop-mock`) otherwise.
+3. **Never modify the app's code.** The app and backend sources (paths in `--doctor`) are read-only: use them for labels, routes, APIs and error messages.
+4. **Capture to disk and review the images first** (`--no-figma`, then open the PNG files). Send to Figma only once the images are right and the user agrees.
+5. **Sending to Figma needs the user**: they must open the right file and page in Figma desktop, run the Flow Capture plugin and keep its window open. Agents cannot open the plugin; remind the user before running. The CLI waits up to 2 minutes for the plugin.
+6. **`--render layers --auto-paste` takes over the keyboard** while pasting. Use it only when the user knows and agrees to leave the machine alone.
+7. **Each run deletes and rewrites `captures/<id>/`** for the flows it runs.
+8. **Never change the `id` or `stepId` of an existing flow**: they key the Sections and frames in Figma; changing them creates new ones instead of updating.
+9. **When adding, removing or renaming flows, update [docs/flows.md](docs/flows.md).**
 
-## Thư mục
+## Layout
 
-| Đường dẫn | Nội dung |
+| Path | Contents |
 | --- | --- |
-| `capture/` | CLI: `cli.ts` (cờ), `runner.ts` (chạy luồng, `shot()`), `define.ts` (`defineFlow`), `config.ts`, `doctor.ts`, `interactive.ts` (menu) |
-| `capture.config.ts` | App, viewport, phần tử bị ẩn khi chụp, bố cục trên Figma |
-| `flows/**/*.flow.ts` | Các luồng; thư mục con là một nhóm |
-| `flows/_helpers/` | Backend giả lập, phiên đăng nhập, captcha, đồng hồ |
-| `plugin/src/` | Plugin Figma; sửa xong phải `npm run build:plugin` và mở lại plugin |
-| `server/`, `shared/types.ts` | Server trung chuyển và định dạng tin nhắn |
-| `web/` | Trang web cục bộ: `server.ts` (HTTP + gửi ảnh có sẵn sang Figma), `library.ts` (đọc `captures/` và `_steps.json`), `public/` |
-| `captures/` | Ảnh đầu ra, không vào git |
+| `capture/` | CLI: `cli.ts` (flags), `runner.ts` (runs flows, `shot()`), `define.ts` (`defineFlow`), `config.ts`, `doctor.ts`, `interactive.ts` (menu) |
+| `capture.config.ts` | Apps, viewports, elements hidden during capture, Figma layout |
+| `flows/**/*.flow.ts` | Flows; each subfolder is a group |
+| `flows/_helpers/` | Mocked backends, sessions, captcha, clock |
+| `plugin/src/` | Figma plugin; after editing run `npm run build:plugin` and reopen the plugin |
+| `server/`, `shared/types.ts` | Relay and message protocol |
+| `web/` | Local viewer: `server.ts` (HTTP + sending existing images to Figma), `library.ts` (reads `captures/` and `_steps.json`), `public/` |
+| `captures/` | Output, git-ignored |
 
-## Ngôn ngữ
+## Language
 
-Người dùng và giao diện app dùng tiếng Việt: trả lời bằng tiếng Việt, tên bước (`title` của `shot()`) viết tiếng Việt có dấu, `id` và `stepId` viết không dấu, chữ thường, nối bằng gạch ngang. Chú thích trong code viết bằng tiếng Anh như code hiện có.
+The user and the app UI are Vietnamese: reply in Vietnamese, and write step titles (`shot()` `title`) in Vietnamese with diacritics. `id` and `stepId` are lowercase ASCII without diacritics, hyphen-separated. Code comments are in English, like the existing code. Repository documentation (README, `docs/`) is in English.
